@@ -137,7 +137,9 @@ function sess_regenerate() {
 
   session_regenerate_id();
 
-  db_query("UPDATE {sessions} SET sid = '%s' WHERE sid = '%s'", session_id(), $old_session_id);
+  $session_id = session_id();
+  db_query("UPDATE {sessions} SET sid = '%s' WHERE sid = '%s'", $session_id, $old_session_id);
+  sess_read($session_id);
 }
 
 /**
