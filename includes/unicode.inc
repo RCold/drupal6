@@ -134,7 +134,7 @@ function drupal_xml_parser_create(&$data) {
   }
 
   // Check for an encoding declaration in the XML prolog if no BOM was found.
-  if (!$bom && preg_match('/^<\?xml[^>]+encoding="([^"]+)/"', $data, $match)) {
+  if (!$bom && preg_match('/^<\?xml[^>]+encoding="([^"]+)"/', $data, $match)) {
     $encoding = $match[1];
   }
 
