@@ -124,6 +124,8 @@ function sess_write($key, $value) {
  * Called when an anonymous user becomes authenticated or vice-versa.
  */
 function sess_regenerate() {
+  global $user;
+
   $old_session_id = session_id();
 
   // We code around http://bugs.php.net/bug.php?id=32802 by destroying
@@ -135,11 +137,10 @@ function sess_regenerate() {
     setcookie(session_name(), '', time() - 42000, '/');
   }
 
+  $account = $user;
   session_regenerate_id();
-
-  $session_id = session_id();
-  db_query("UPDATE {sessions} SET sid = '%s' WHERE sid = '%s'", $session_id, $old_session_id);
-  sess_read($session_id);
+  $user = $account;
+  db_query("UPDATE {sessions} SET sid = '%s' WHERE sid = '%s'", session_id(), $old_session_id);
 }
 
 /**
@@ -167,6 +168,7 @@ function sess_count($timestamp = 0, $anonymous = true) {
  */
 function sess_destroy_sid($sid) {
   db_query("DELETE FROM {sessions} WHERE sid = '%s'", $sid);
+  return TRUE;
 }
 
 /**
@@ -177,6 +179,7 @@ function sess_destroy_sid($sid) {
  */
 function sess_destroy_uid($uid) {
   db_query('DELETE FROM {sessions} WHERE uid = %d', $uid);
+  return TRUE;
 }
 
 function sess_gc($lifetime) {
@@ -186,7 +189,6 @@ function sess_gc($lifetime) {
   // to '1814400'. At that value, only after a user doesn't log in after
   // three weeks (1814400 seconds) will his/her session be removed.
   db_query("DELETE FROM {sessions} WHERE timestamp < %d", time() - $lifetime);
-
   return TRUE;
 }
 

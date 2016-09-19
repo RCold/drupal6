@@ -30,6 +30,7 @@ function drupal_test_mysqli($url, &$success) {
   $url['user'] = urldecode($url['user']);
   $url['pass'] = isset($url['pass']) ? urldecode($url['pass']) : '';
   $url['host'] = urldecode($url['host']);
+  $url['port'] = isset($url['port']) ? $url['port'] : 3306;
   $url['path'] = urldecode($url['path']);
 
   $connection = mysqli_init();

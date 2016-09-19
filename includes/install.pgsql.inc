@@ -41,7 +41,7 @@ function drupal_test_pgsql($url, &$success) {
     $conn_string .= ' dbname='. substr(urldecode($url['path']), 1);
   }
   if (isset($url['port'])) {
-    $conn_string .= ' port='. urldecode($url['port']);
+    $conn_string .= ' port='. $url['port'];
   }
 
   // Test connecting to the database.

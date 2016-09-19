@@ -66,10 +66,8 @@ function db_connect($url) {
   // Test if database URL has a password.
   $url['pass'] = isset($url['pass']) ? urldecode($url['pass']) : '';
   $url['host'] = urldecode($url['host']);
+  $url['port'] = isset($url['port']) ? $url['port'] : 3306;
   $url['path'] = urldecode($url['path']);
-  if (!isset($url['port'])) {
-    $url['port'] = NULL;
-  }
 
   $connection = mysqli_init();
   @mysqli_real_connect($connection, $url['host'], $url['user'], $url['pass'], substr($url['path'], 1), $url['port'], NULL, MYSQLI_CLIENT_FOUND_ROWS);

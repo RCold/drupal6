@@ -1091,7 +1091,7 @@ function file_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $ca
           $files[$$key]->filename = $filename;
           $files[$$key]->basename = $basename;
           $files[$$key]->name = $name;
-          if ($callback) {
+          if (function_exists($callback)) {
             $callback($filename);
           }
         }

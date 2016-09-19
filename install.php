@@ -185,7 +185,7 @@ function install_verify_settings() {
     $db_user = urldecode($url['user']);
     $db_pass = isset($url['pass']) ? urldecode($url['pass']) : NULL;
     $db_host = urldecode($url['host']);
-    $db_port = isset($url['port']) ? urldecode($url['port']) : '';
+    $db_port = isset($url['port']) ? $url['port'] : NULL;
     $db_path = ltrim(urldecode($url['path']), '/');
     $settings_file = './'. conf_path(FALSE, TRUE) .'/settings.php';
 
@@ -424,7 +424,7 @@ function install_settings_form_submit($form, &$form_state) {
   drupal_rewrite_settings($settings);
 
   // Continue to install profile step
-  install_goto("install.php?profile=$profile". ($install_locale ? "&locale=$install_locale" : ''));
+  install_goto('install.php?profile='. $profile .'&locale='. $install_locale);
 }
 
 /**
@@ -652,7 +652,7 @@ function install_tasks($profile, $task) {
   $_SESSION['messages'] = $messages;
 
   // URL used to direct page requests.
-  $url = $base_url .'/install.php?locale='. $install_locale .'&profile='. $profile;
+  $url = $base_url .'/install.php?profile='. $profile .'&locale='. $install_locale;
 
   // Build a page for final tasks.
   if (empty($task)) {

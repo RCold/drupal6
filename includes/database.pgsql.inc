@@ -66,7 +66,7 @@ function db_connect($url) {
     $conn_string .= ' dbname='. substr(urldecode($url['path']), 1);
   }
   if (isset($url['port'])) {
-    $conn_string .= ' port='. urldecode($url['port']);
+    $conn_string .= ' port='. $url['port'];
   }
 
   // pg_last_error() does not return a useful error message for database

@@ -208,8 +208,8 @@ function system_requirements($phase) {
   );
 
   // For installer, create the directory if possible.
-  if ($phase == 'install' && !is_dir($directory) && @mkdir($directory)) {
-    @chmod($directory, 0775); // Necessary for non-webserver users.
+  if ($phase == 'install' && !file_exists($directory) && is_writable(dirname($directory)) && mkdir($directory)) {
+    chmod($directory, 0775); // Necessary for non-webserver users.
   }
 
   $is_writable = is_writable($directory);

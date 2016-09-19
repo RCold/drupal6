@@ -63,9 +63,7 @@ function db_connect($url) {
   $url['path'] = urldecode($url['path']);
 
   // Allow for non-standard MySQL port.
-  if (isset($url['port'])) {
-    $url['host'] = $url['host'] .':'. $url['port'];
-  }
+  $url['host'] = $url['host'] .':'. isset($url['port']) ? $url['port'] : 3306;
 
   // - TRUE makes mysql_connect() always open a new link, even if
   //   mysql_connect() was called before with the same parameters.

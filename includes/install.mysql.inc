@@ -33,9 +33,7 @@ function drupal_test_mysql($url, &$success) {
   $url['path'] = urldecode($url['path']);
 
   // Allow for non-standard MySQL port.
-  if (isset($url['port'])) {
-    $url['host'] = $url['host'] .':'. $url['port'];
-  }
+  $url['host'] .= ':'. isset($url['port']) ? $url['port'] : 3306;
 
   // Test connecting to the database.
   $connection = @mysql_connect($url['host'], $url['user'], $url['pass'], TRUE, 2);
