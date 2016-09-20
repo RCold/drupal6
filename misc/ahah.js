@@ -165,7 +165,7 @@ Drupal.ahah.prototype.beforeSend = function (request, options) {
   if (this.immutable) {
     request.setRequestHeader('X-Drupal-Accept-Build-Id', '1');
   }
-}
+};
 
 /**
  * Handler for the form redirection completion.
@@ -263,4 +263,4 @@ Drupal.ahah.prototype.complete = function (response, status) {
     }
     this.buildId = null;
   }
-}
+};

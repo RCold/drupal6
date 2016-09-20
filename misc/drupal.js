@@ -286,7 +286,7 @@ Drupal.ahahError = function(xmlhttp, uri) {
     var message = Drupal.t("An HTTP error @status occurred. \n@uri", {'@uri': uri, '@status': xmlhttp.status });
   }
   return message;
-}
+};
 
 // Global Killswitch on the <html> element
 if (Drupal.jsEnabled) {

@@ -1,6 +1,6 @@
 
 Drupal.behaviors.comment = function (context) {
-  var parts = new Array("name", "homepage", "mail");
+  var parts = ["name", "homepage", "mail"];
   var cookie = '';
   for (i=0;i<3;i++) {
     cookie = Drupal.comment.getCookie('comment_info_' + parts[i]);

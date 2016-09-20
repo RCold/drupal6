@@ -227,7 +227,7 @@ Drupal.behaviors.color = function (context) {
       );
       $(this).after(lock);
       locks.push(lock);
-    };
+    }
 
     // Add hook
     var hook = $('<div class="hook"></div>');

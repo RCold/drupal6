@@ -153,7 +153,7 @@ Drupal.tableDrag.prototype.rowSettings = function(group, row) {
     var targetClass = this.tableSettings[group][delta]['target'];
     if (field.is('.' + targetClass)) {
       // Return a copy of the row settings.
-      var rowSettings = new Object();
+      var rowSettings = {};
       for (var n in this.tableSettings[group][delta]) {
         rowSettings[n] = this.tableSettings[group][delta][n];
       }
@@ -189,7 +189,7 @@ Drupal.tableDrag.prototype.makeDraggable = function(item) {
   // Add the mousedown action for the handle.
   handle.mousedown(function(event) {
     // Create a new dragObject recording the event information.
-    self.dragObject = new Object();
+    self.dragObject = {};
     self.dragObject.initMouseOffset = self.getMouseOffset(item, event);
     self.dragObject.initMouseCoords = self.mouseCoords(event);
     if (self.indentEnabled) {
@@ -696,7 +696,7 @@ Drupal.tableDrag.prototype.updateField = function(changedRow, group) {
         var siblings = this.rowObject.findSiblings(rowSettings);
         if ($(targetElement).is('select')) {
           // Get a list of acceptable values.
-          var values = new Array();
+          var values = [];
           $('option', targetElement).each(function() {
             values.push(this.value);
           });
@@ -845,7 +845,7 @@ Drupal.tableDrag.prototype.row = function(tableRow, method, indentEnabled, maxDe
 Drupal.tableDrag.prototype.row.prototype.findChildren = function(addClasses) {
   var parentIndentation = this.indents;
   var currentRow = $(this.element, this.table).next('tr.draggable');
-  var rows = new Array();
+  var rows = [];
   var child = 0;
   while (currentRow.length) {
     var rowIndentation = $('.indentation', currentRow).length;
@@ -958,7 +958,7 @@ Drupal.tableDrag.prototype.row.prototype.validIndentInterval = function (prevRow
   }
 
   return {'min':minIndent, 'max':maxIndent};
-}
+};
 
 /**
  * Indent a row within the legal bounds of the table.
@@ -1011,8 +1011,8 @@ Drupal.tableDrag.prototype.row.prototype.indent = function(indentDiff) {
  *   The field settings we're using to identify what constitutes a sibling.
  */
 Drupal.tableDrag.prototype.row.prototype.findSiblings = function(rowSettings) {
-  var siblings = new Array();
-  var directions = new Array('prev', 'next');
+  var siblings = [];
+  var directions = ['prev', 'next'];
   var rowIndentation = this.indents;
   for (var d = 0; d < directions.length; d++) {
     var checkRow = $(this.element)[directions[d]]();
