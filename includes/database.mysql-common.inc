@@ -23,8 +23,8 @@
  *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
  *   in '') and %%.
  *
- *   NOTE: using this syntax will cast FALSE values to decimal 0,
- *   and TRUE values to decimal 1.
+ *   NOTE: using this syntax will cast FALSE values to decimal 0, and TRUE
+ *   values to decimal 1.
  * @param int $from
  *   The first result row to return.
  * @param int $count
@@ -70,8 +70,8 @@ function db_query_range() {
  *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
  *   in '') and %%.
  *
- *   NOTE: using this syntax will cast and FALSE values to decimal 0,
- *   and TRUE values to decimal 1.
+ *   NOTE: using this syntax will cast FALSE values to decimal 0, and TRUE
+ *   values to decimal 1.
  * @param string $table
  *   The name of the temporary table to select into. This name will not be
  *   prefixed as there is no risk of collision.

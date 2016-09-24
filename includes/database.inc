@@ -87,8 +87,8 @@ define('DB_ERROR', 'a515ac9c2796ca0e23adbe92c68fc9fc');
  *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
  *   in '') and %%.
  *
- *   NOTE: using this syntax will cast FALSE values to decimal 0,
- *   and TRUE values to decimal 1.
+ *   NOTE: using this syntax will cast FALSE values to decimal 0, and TRUE
+ *   values to decimal 1.
  * @return resource|bool
  *   Successful SELECT, SHOW, DESCRIBE, EXPLAIN, or other queries which return a
  *   set of results will return a database query result resource. Other

@@ -568,7 +568,7 @@ function _db_create_field_sql($field, $spec) {
   }
 
   if ($spec['type'] == 'serial') {
-    unset($spec['not null']);
+    $spec['not null'] = FALSE;
   }
 
   // Set the correct database-engine specific data type.
@@ -891,10 +891,10 @@ function db_change_field(&$ret, $table, $field, $new_field, $spec, $new_keys = a
   $map =  db_type_map();
   $type = $map[$spec['type'] .':'. $spec['size']];
   if (in_array($type, array('smallserial', 'serial', 'bigserial', 'numeric'))) {
-    $type = 'int';
+    $type = 'integer';
   }
 
-  $ret[] = update_sql('UPDATE {%l} SET %l = CAST(%l_old AS %l)', $table, $new_field, $field, $type);
+  $ret[] = update_sql('UPDATE {%l} SET %l = CAST(%l_old AS %s)', $table, $new_field, $field, $type);
 
   if ($not_null) {
     $ret[] = update_sql("ALTER TABLE {%l} ALTER COLUMN %l SET NOT NULL", $table, $new_field);
