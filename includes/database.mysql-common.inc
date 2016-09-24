@@ -6,6 +6,27 @@
  */
 
 /**
+ * Report database status.
+ */
+function db_status_report($phase) {
+  $t = get_t();
+
+  $version = db_version();
+
+  $form['mysql'] = array(
+    'title' => $t('MySQL database'),
+    'value' => ($phase == 'runtime') ? l($version, 'admin/reports/status/sql') : $version,
+  );
+
+  if (version_compare($version, DRUPAL_MINIMUM_MYSQL) < 0) {
+    $form['mysql']['severity'] = REQUIREMENT_ERROR;
+    $form['mysql']['description'] = $t('Your MySQL Server is too old. Drupal requires at least MySQL %version.', array('%version' => DRUPAL_MINIMUM_MYSQL));
+  }
+
+  return $form;
+}
+
+/**
  * Runs a limited-range query in the active database.
  *
  * Use this as a substitute for db_query() when a subset of the query is to be
