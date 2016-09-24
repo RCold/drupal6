@@ -6,40 +6,92 @@
  */
 
 /**
- * Runs a basic query in the active database.
+ * Runs a limited-range query in the active database.
  *
+ * Use this as a substitute for db_query() when a subset of the query is to be
+ * returned.
  * User-supplied arguments to the query should be passed in as separate
  * parameters so that they can be properly escaped to avoid SQL injection
  * attacks.
  *
- * @param $query
+ * @param string $query
  *   A string containing an SQL query.
  * @param ...
  *   A variable number of arguments which are substituted into the query
  *   using printf() syntax. Instead of a variable number of query arguments,
  *   you may also pass a single array containing the query arguments.
- *
  *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
  *   in '') and %%.
  *
- *   NOTE: using this syntax will cast NULL and FALSE values to decimal 0,
+ *   NOTE: using this syntax will cast FALSE values to decimal 0,
  *   and TRUE values to decimal 1.
- *
- * @return
- *   Successful SELECT, SHOW, DESCRIBE, EXPLAIN, or other queries which return a
- *   set of results will return a database query result resource. Other
- *   successful queries will return TRUE and failing queries will return FALSE.
+ * @param int $from
+ *   The first result row to return.
+ * @param int $count
+ *   The maximum number of result rows to return.
+ * @return resource|bool
+ *   A database query result resource, or FALSE if the query was not executed
+ *   correctly.
  */
-function db_query($query) {
+function db_query_range() {
   $args = func_get_args();
-  array_shift($args);
-  $query = db_prefix_tables($query);
-  if (isset($args[0]) and is_array($args[0])) { // 'All arguments in one array' syntax
+  $query = array_shift($args);
+  $count = array_pop($args);
+  $from = array_pop($args);
+
+  if (isset($args[0]) && is_array($args[0])) { // 'All arguments in one array' syntax
     $args = $args[0];
   }
-  _db_query_callback($args, TRUE);
-  $query = preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $query);
-  return _db_query($query);
+
+  $query .= ' LIMIT %d, %d';
+  array_push($args, $from, $count);
+  return db_query($query, $args);
+}
+
+/**
+ * Runs a SELECT query and stores its results in a temporary table.
+ *
+ * Use this as a substitute for db_query() when the results need to be stored
+ * in a temporary table.
+ *
+ * User-supplied arguments to the query should be passed in as separate parameters
+ * so that they can be properly escaped to avoid SQL injection attacks.
+ *
+ * Note that if you need to know how many results were returned, you should do
+ * a SELECT COUNT(*) on the temporary table afterwards. db_affected_rows() does
+ * not give consistent result across different database types in this case.
+ *
+ * @param string $query
+ *   A string containing a normal SELECT SQL query.
+ * @param ...
+ *   A variable number of arguments which are substituted into the query
+ *   using printf() syntax. The query arguments can be enclosed in one
+ *   array instead.
+ *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
+ *   in '') and %%.
+ *
+ *   NOTE: using this syntax will cast and FALSE values to decimal 0,
+ *   and TRUE values to decimal 1.
+ * @param string $table
+ *   The name of the temporary table to select into. This name will not be
+ *   prefixed as there is no risk of collision.
+ * @return resource|bool
+ *   A database query result resource, or FALSE if the query was not executed
+ *   correctly.
+ */
+function db_query_temporary() {
+  $args = func_get_args();
+  $query = array_shift($args);
+  $table = array_pop($args);
+
+  if (isset($args[0]) && is_array($args[0])) { // 'All arguments in one array' syntax
+    $args = $args[0];
+  }
+
+  // Table name will not be prefixed as there is no risk of collision.
+  $query = preg_replace('/^\s*SELECT\b/i', 'CREATE TEMPORARY TABLE %l ENGINE = HEAP SELECT', $query);
+  array_unshift($args, $table);
+  return db_query($query, $args);
 }
 
 /**
@@ -50,62 +102,67 @@ function db_query($query) {
 /**
  * Generate SQL to create a new table from a Drupal schema definition.
  *
- * @param $name
+ * @param string $table
  *   The name of the table to create.
- * @param $table
+ * @param array $schema
  *   A Schema API table definition array.
- * @return
+ * @return array
  *   An array of SQL statements to create the table.
  */
-function db_create_table_sql($name, $table) {
+function db_create_table_sql($table, $schema) {
+  global $db_collation;
 
-  if (empty($table['mysql_suffix'])) {
-    $table['mysql_suffix'] = '/*!40100 DEFAULT CHARACTER SET utf8';
+  $table = db_escape_table($table);
+  $sql = 'CREATE TABLE {'. $table .'} (';
+
+  // Add the SQL statement for each field.
+  $fields = array();
+  foreach ($schema['fields'] as $field => $spec) {
+    $fields[] = _db_create_field_sql($field, $spec);
+  }
+  $sql .= implode(', ', $fields);
+
+  // Process keys & indexes.
+  $keys = _db_create_keys_sql($schema);
+  if (!empty($keys)) {
+    $sql .= ', '. implode(', ', $keys) ;
+  }
+
+  $sql .= ') ';
+
+  if (empty($schema['mysql_suffix'])) {
+    $schema['mysql_suffix'] = '/*!40100 DEFAULT CHARACTER SET utf8';
     // By default, MySQL uses the default collation for new tables, which is
     // 'utf8_general_ci' for utf8. If an alternate collation has been set, it
     // needs to be explicitly specified.
     // @see db_connect()
-    $collation = (!empty($table['collation']) ? $table['collation'] : (!empty($GLOBALS['db_collation']) ? $GLOBALS['db_collation'] : ''));
-    if ($collation) {
-      $table['mysql_suffix'] .= ' COLLATE ' . $collation;
+    $collation = !empty($schema['collation']) ? $schema['collation'] : (!empty($db_collation) ? $db_collation : NULL);
+    if (!empty($collation)) {
+      $schema['mysql_suffix'] .= ' COLLATE ' . $collation;
     }
-    $table['mysql_suffix'] .= ' */';
+    $schema['mysql_suffix'] .= ' */';
   }
 
-  $sql = "CREATE TABLE {". $name ."} (\n";
-
-  // Add the SQL statement for each field.
-  foreach ($table['fields'] as $field_name => $field) {
-    $sql .= _db_create_field_sql($field_name, _db_process_field($field)) .", \n";
-  }
-
-  // Process keys & indexes.
-  $keys = _db_create_keys_sql($table);
-  if (count($keys)) {
-    $sql .= implode(", \n", $keys) .", \n";
-  }
-
-  // Remove the last comma and space.
-  $sql = substr($sql, 0, -3) ."\n) ";
-
-  $sql .= $table['mysql_suffix'];
+  $sql .= $schema['mysql_suffix'];
 
   return array($sql);
 }
 
-function _db_create_keys_sql($spec) {
+function _db_create_keys_sql($schema) {
   $keys = array();
 
-  if (!empty($spec['primary key'])) {
-    $keys[] = 'PRIMARY KEY ('. _db_create_key_sql($spec['primary key']) .')';
+  if (!empty($schema['primary key'])) {
+    $keys[] = 'PRIMARY KEY ('. _db_create_key_sql($schema['primary key']) .')';
   }
-  if (!empty($spec['unique keys'])) {
-    foreach ($spec['unique keys'] as $key => $fields) {
+
+  if (!empty($schema['unique keys'])) {
+    foreach ($schema['unique keys'] as $key => $fields) {
       $keys[] = 'UNIQUE KEY '. $key .' ('. _db_create_key_sql($fields) .')';
     }
   }
-  if (!empty($spec['indexes'])) {
-    foreach ($spec['indexes'] as $index => $fields) {
+
+  if (!empty($schema['indexes'])) {
+    foreach ($schema['indexes'] as $index => $fields) {
       $keys[] = 'INDEX '. $index .' ('. _db_create_key_sql($fields) .')';
     }
   }
@@ -115,80 +172,79 @@ function _db_create_keys_sql($spec) {
 
 function _db_create_key_sql($fields) {
   $ret = array();
+
   foreach ($fields as $field) {
     if (is_array($field)) {
-      $ret[] = $field[0] .'('. $field[1] .')';
+      $ret[] = db_escape_table($field[0]) .'('. (int) $field[1] .')';
     }
     else {
-      $ret[] = $field;
+      $ret[] = db_escape_table($field);
     }
   }
+
   return implode(', ', $ret);
-}
-
-/**
- * Set database-engine specific properties for a field.
- *
- * @param $field
- *   A field description array, as specified in the schema documentation.
- */
-function _db_process_field($field) {
-
-  if (!isset($field['size'])) {
-    $field['size'] = 'normal';
-  }
-
-  // Set the correct database-engine specific datatype.
-  if (!isset($field['mysql_type'])) {
-    $map = db_type_map();
-    $field['mysql_type'] = $map[$field['type'] .':'. $field['size']];
-  }
-
-  if ($field['type'] == 'serial') {
-    $field['auto_increment'] = TRUE;
-  }
-
-  return $field;
 }
 
 /**
  * Create an SQL string for a field to be used in table creation or alteration.
  *
- * Before passing a field out of a schema definition into this function it has
- * to be processed by _db_process_field().
- *
- * @param $name
- *    Name of the field.
- * @param $spec
- *    The field specification, as per the schema data structure format.
+ * @param string $field
+ *   Name of the field.
+ * @param array $spec
+ *   The field specification, as per the schema data structure format.
+ * @return string
+ *   The SQL string for the field.
  */
-function _db_create_field_sql($name, $spec) {
-  $sql = "`". $name ."` ". $spec['mysql_type'];
+function _db_create_field_sql($field, $spec) {
+  $field = db_escape_table($field);
+
+  if (!isset($spec['size'])) {
+    $spec['size'] = 'normal';
+  }
+
+  if ($spec['type'] == 'serial') {
+    $spec['unsigned'] = FALSE;
+  }
+
+  // Set the correct database-engine specific data type.
+  if (!isset($spec['mysql type'])) {
+    $map = db_type_map();
+    $spec['mysql type'] = $map[$spec['type'] .':'. $spec['size']];
+  }
+
+  $sql = $field .' '. $spec['mysql type'];
 
   if (in_array($spec['type'], array('varchar', 'char', 'text')) && isset($spec['length'])) {
-    $sql .= '('. $spec['length'] .')';
+    $sql .= '('. (int) $spec['length'] .')';
   }
-  elseif (isset($spec['precision']) && isset($spec['scale'])) {
-    $sql .= '('. $spec['precision'] .', '. $spec['scale'] .')';
+  elseif ($spec['type'] == 'numeric' && isset($spec['precision']) && isset($spec['scale'])) {
+    $sql .= '('. (int) $spec['precision'] .', '. (int) $spec['scale'] .')';
   }
 
   if (!empty($spec['unsigned'])) {
-    $sql .= ' unsigned';
+    $sql .= ' UNSIGNED';
   }
 
   if (!empty($spec['not null'])) {
     $sql .= ' NOT NULL';
   }
 
-  if (!empty($spec['auto_increment'])) {
-    $sql .= ' auto_increment';
+  if ($spec['type'] == 'serial') {
+    $sql .= ' AUTO_INCREMENT';
   }
 
   if (isset($spec['default'])) {
-    if (is_string($spec['default'])) {
-      $spec['default'] = "'". $spec['default'] ."'";
+    $default = $spec['default'];
+    if (is_numeric(trim($default)) && !preg_match('/x/i', $default)) {
+      $default = trim($default);
     }
-    $sql .= ' DEFAULT '. $spec['default'];
+    elseif (is_string($default)) {
+      $default = "'". db_escape_string($default) ."'";
+    }
+    else {
+      $default = 'NULL';
+    }
+    $sql .= ' DEFAULT '. $default;
   }
 
   if (empty($spec['not null']) && !isset($spec['default'])) {
@@ -203,115 +259,120 @@ function _db_create_field_sql($name, $spec) {
  * to the engine-specific data type.
  */
 function db_type_map() {
-  // Put :normal last so it gets preserved by array_flip.  This makes
-  // it much easier for modules (such as schema.module) to map
-  // database types back into schema types.
-  $map = array(
-    'varchar:normal'  => 'VARCHAR',
-    'char:normal'     => 'CHAR',
+  static $map;
 
-    'text:tiny'       => 'TINYTEXT',
-    'text:small'      => 'TINYTEXT',
-    'text:medium'     => 'MEDIUMTEXT',
-    'text:big'        => 'LONGTEXT',
-    'text:normal'     => 'TEXT',
+  if (!isset($map)) {
+    // Put :normal last so it gets preserved by array_flip.  This makes
+    // it much easier for modules (such as schema.module) to map
+    // database types back into schema types.
+    $map = array(
+      'int:tiny' => 'TINYINT',
+      'int:small' => 'SMALLINT',
+      'int:medium' => 'MEDIUMINT',
+      'int:big' => 'BIGINT',
+      'int:normal' => 'INT',
 
-    'serial:tiny'     => 'TINYINT',
-    'serial:small'    => 'SMALLINT',
-    'serial:medium'   => 'MEDIUMINT',
-    'serial:big'      => 'BIGINT',
-    'serial:normal'   => 'INT',
+      'float:tiny' => 'FLOAT',
+      'float:small' => 'FLOAT',
+      'float:medium' => 'FLOAT',
+      'float:big' => 'DOUBLE',
+      'float:normal' => 'FLOAT',
 
-    'int:tiny'        => 'TINYINT',
-    'int:small'       => 'SMALLINT',
-    'int:medium'      => 'MEDIUMINT',
-    'int:big'         => 'BIGINT',
-    'int:normal'      => 'INT',
+      'numeric:normal' => 'DECIMAL',
 
-    'float:tiny'      => 'FLOAT',
-    'float:small'     => 'FLOAT',
-    'float:medium'    => 'FLOAT',
-    'float:big'       => 'DOUBLE',
-    'float:normal'    => 'FLOAT',
+      'serial:tiny' => 'TINYINT UNSIGNED',
+      'serial:small' => 'SMALLINT UNSIGNED',
+      'serial:medium' => 'MEDIUMINT UNSIGNED',
+      'serial:big' => 'BIGINT UNSIGNED',
+      'serial:normal' => 'INT UNSIGNED',
 
-    'numeric:normal'  => 'DECIMAL',
+      'varchar:normal' => 'VARCHAR',
+      'char:normal' => 'CHAR',
 
-    'blob:big'        => 'LONGBLOB',
-    'blob:normal'     => 'BLOB',
+      'text:tiny' => 'TINYTEXT',
+      'text:small' => 'TINYTEXT',
+      'text:medium' => 'MEDIUMTEXT',
+      'text:big' => 'LONGTEXT',
+      'text:normal' => 'TEXT',
 
-    'datetime:normal' => 'DATETIME',
-  );
+      'blob:big' => 'LONGBLOB',
+      'blob:normal' => 'BLOB',
+
+      'datetime:normal' => 'DATETIME',
+    );
+  }
+
   return $map;
 }
 
 /**
  * Rename a table.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be renamed.
- * @param $new_name
+ * @param string $new_table
  *   The new name for the table.
  */
-function db_rename_table(&$ret, $table, $new_name) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} RENAME TO {'. $new_name .'}');
+function db_rename_table(&$ret, $table, $new_table) {
+  $ret[] = update_sql('ALTER TABLE {%l} RENAME TO {%l}', $table, $new_table);
 }
 
 /**
  * Drop a table.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be dropped.
  */
 function db_drop_table(&$ret, $table) {
-  $ret[] = update_sql('DROP TABLE {'. $table .'}');
+  $ret[] = update_sql('DROP TABLE {%l}', $table);
 }
 
 /**
  * Add a new field to a table.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   Name of the table to be altered.
- * @param $field
+ * @param string $field
  *   Name of the field to be added.
- * @param $spec
+ * @param array $spec
  *   The field specification array, as taken from a schema definition.
  *   The specification may also contain the key 'initial', the newly
  *   created field will be set to the value of the key in all rows.
  *   This is most useful for creating NOT NULL columns with no default
  *   value in existing tables.
- * @param $keys_new
- *   (optional) Keys and indexes specification to be created on the
- *   table along with adding the field. The format is the same as a
- *   table specification but without the 'fields' element.  If you are
- *   adding a type 'serial' field, you MUST specify at least one key
- *   or index including it in this array. See db_change_field() for more
- *   explanation why.
+ * @param array $new_keys (optional)
+ *   Keys and indexes specification to be created on the table along with
+ *   adding the field. The format is the same as a table specification but
+ *   without the 'fields' element.  If you are adding a type 'serial' field,
+ *   you MUST specify at least one key or index including it in this array.
+ * @see db_change_field()
  */
-function db_add_field(&$ret, $table, $field, $spec, $keys_new = array()) {
-  $fixnull = FALSE;
+function db_add_field(&$ret, $table, $field, $spec, $new_keys = array()) {
+  $fix_null = FALSE;
   if (!empty($spec['not null']) && !isset($spec['default'])) {
-    $fixnull = TRUE;
+    $fix_null = TRUE;
     $spec['not null'] = FALSE;
   }
-  $query = 'ALTER TABLE {'. $table .'} ADD ';
-  $query .= _db_create_field_sql($field, _db_process_field($spec));
-  if (count($keys_new)) {
-    $query .= ', ADD '. implode(', ADD ', _db_create_keys_sql($keys_new));
+
+  $query = 'ALTER TABLE {%l} ADD COLUMN '. _db_create_field_sql($field, $spec);
+
+  if (!empty($new_keys)) {
+    $query .= ', ADD '. implode(', ADD ', _db_create_keys_sql($new_keys));
   }
-  $ret[] = update_sql($query);
+
+  $ret[] = update_sql($query, $table);
+
   if (isset($spec['initial'])) {
-    // All this because update_sql does not support %-placeholders.
-    $sql = 'UPDATE {'. $table .'} SET '. $field .' = '. db_type_placeholder($spec['type']);
-    $result = db_query($sql, $spec['initial']);
-    $ret[] = array('success' => $result !== FALSE, 'query' => check_plain($sql .' ('. $spec['initial'] .')'));
+    $ret[] = update_sql('UPDATE {%l} SET %l = '. db_type_placeholder($spec['type']), $table, $field, $spec['initial']);
   }
-  if ($fixnull) {
+
+  if ($fix_null) {
     $spec['not null'] = TRUE;
     db_change_field($ret, $table, $field, $field, $spec);
   }
@@ -320,141 +381,131 @@ function db_add_field(&$ret, $table, $field, $spec, $keys_new = array()) {
 /**
  * Drop a field.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $field
+ * @param string $field
  *   The field to be dropped.
  */
 function db_drop_field(&$ret, $table, $field) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} DROP '. $field);
+  $ret[] = update_sql('ALTER TABLE {%l} DROP COLUMN %l', $table, $field);
 }
 
 /**
  * Set the default value for a field.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $field
+ * @param string $field
  *   The field to be altered.
- * @param $default
- *   Default value to be set. NULL for 'default NULL'.
+ * @param mixed $default
+ *   Default value to be set. NULL for 'DEFAULT NULL'.
  */
 function db_field_set_default(&$ret, $table, $field, $default) {
-  if ($default === NULL) {
-    $default = 'NULL';
-  }
-  else {
-    $default = is_string($default) ? "'$default'" : $default;
-  }
-
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} ALTER COLUMN '. $field .' SET DEFAULT '. $default);
+  $ret[] = update_sql('ALTER TABLE {%l} ALTER COLUMN %l SET DEFAULT %v', $table, $field, $default);
 }
 
 /**
  * Set a field to have no default value.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $field
+ * @param string $field
  *   The field to be altered.
  */
 function db_field_set_no_default(&$ret, $table, $field) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} ALTER COLUMN '. $field .' DROP DEFAULT');
+  $ret[] = update_sql('ALTER TABLE {%l} ALTER COLUMN %l DROP DEFAULT', $table, $field);
 }
 
 /**
  * Add a primary key.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $fields
+ * @param array $fields
  *   Fields for the primary key.
  */
 function db_add_primary_key(&$ret, $table, $fields) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} ADD PRIMARY KEY ('.
-    _db_create_key_sql($fields) .')');
+  $ret[] = update_sql('ALTER TABLE {%l} ADD PRIMARY KEY ('. _db_create_key_sql($fields) .')', $table);
 }
 
 /**
  * Drop the primary key.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
  */
 function db_drop_primary_key(&$ret, $table) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} DROP PRIMARY KEY');
+  $ret[] = update_sql('ALTER TABLE {%l} DROP PRIMARY KEY', $table);
 }
 
 /**
  * Add a unique key.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $name
+ * @param string $key
  *   The name of the key.
- * @param $fields
+ * @param array $fields
  *   An array of field names.
  */
-function db_add_unique_key(&$ret, $table, $name, $fields) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} ADD UNIQUE KEY '.
-    $name .' ('. _db_create_key_sql($fields) .')');
+function db_add_unique_key(&$ret, $table, $key, $fields) {
+  $ret[] = update_sql('ALTER TABLE {%l} ADD UNIQUE KEY %l ('. _db_create_key_sql($fields) .')', $table, $key);
 }
 
 /**
  * Drop a unique key.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $name
+ * @param string $key
  *   The name of the key.
  */
-function db_drop_unique_key(&$ret, $table, $name) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} DROP KEY '. $name);
+function db_drop_unique_key(&$ret, $table, $key) {
+  $ret[] = update_sql('ALTER TABLE {%l} DROP KEY %l', $table, $key);
 }
 
 /**
  * Add an index.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $name
+ * @param string $index
  *   The name of the index.
- * @param $fields
+ * @param array $fields
  *   An array of field names.
  */
-function db_add_index(&$ret, $table, $name, $fields) {
-  $query = 'ALTER TABLE {'. $table .'} ADD INDEX '. $name .' ('. _db_create_key_sql($fields) .')';
-  $ret[] = update_sql($query);
+function db_add_index(&$ret, $table, $index, $fields) {
+  $ret[] = update_sql('ALTER TABLE {%l} ADD INDEX %l ('. _db_create_key_sql($fields) .')', $table, $index);
 }
 
 /**
  * Drop an index.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   The table to be altered.
- * @param $name
+ * @param string $index
  *   The name of the index.
  */
-function db_drop_index(&$ret, $table, $name) {
-  $ret[] = update_sql('ALTER TABLE {'. $table .'} DROP INDEX '. $name);
+function db_drop_index(&$ret, $table, $index) {
+  $ret[] = update_sql('ALTER TABLE {%l} DROP INDEX %l', $table, $index);
 }
 
 /**
@@ -466,7 +517,7 @@ function db_drop_index(&$ret, $table, $name) {
  * That means that you have to drop all affected keys and indexes with
  * db_drop_{primary_key,unique_key,index}() before calling db_change_field().
  * To recreate the keys and indices, pass the key definitions as the
- * optional $keys_new argument directly to db_change_field().
+ * optional $new_keys argument directly to db_change_field().
  *
  * For example, suppose you have:
  * @code
@@ -497,46 +548,93 @@ function db_drop_index(&$ret, $table, $name) {
  * db_add_{primary_key,unique_key,index}() for this purpose because
  * the ALTER TABLE command will fail to add the column without a key
  * or index specification.  The solution is to use the optional
- * $keys_new argument to create the key or index at the same time as
+ * $new_keys argument to create the key or index at the same time as
  * field.
  *
  * You could use db_add_{primary_key,unique_key,index}() in all cases
  * unless you are converting a field to be type serial. You can use
- * the $keys_new argument in all cases.
+ * the $new_keys argument in all cases.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $table
+ * @param string $table
  *   Name of the table.
- * @param $field
+ * @param string $field
  *   Name of the field to change.
- * @param $field_new
- *   New name for the field (set to the same as $field if you don't want to change the name).
- * @param $spec
+ * @param string $new_field
+ *   New name for the field (set to the same as $field if you don't want to
+ *   change the name).
+ * @param array $spec
  *   The field specification for the new field.
- * @param $keys_new
- *   (optional) Keys and indexes specification to be created on the
- *   table along with changing the field. The format is the same as a
- *   table specification but without the 'fields' element.
+ * @param array $new_keys (optional)
+ *   Keys and indexes specification to be created on the table along with
+ *   changing the field. The format is the same as a table specification but
+ *   without the 'fields' element.
  */
 
-function db_change_field(&$ret, $table, $field, $field_new, $spec, $keys_new = array()) {
-  $sql = 'ALTER TABLE {'. $table .'} CHANGE `'. $field .'` '.
-    _db_create_field_sql($field_new, _db_process_field($spec));
-  if (count($keys_new)) {
-    $sql .= ', ADD '. implode(', ADD ', _db_create_keys_sql($keys_new));
+function db_change_field(&$ret, $table, $field, $new_field, $spec, $new_keys = array()) {
+  $query = 'ALTER TABLE {%l} CHANGE %l '. _db_create_field_sql($new_field, $spec);
+
+  if (!empty($new_keys)) {
+    $query .= ', ADD '. implode(', ADD ', _db_create_keys_sql($new_keys));
   }
-  $ret[] = update_sql($sql);
+
+  $ret[] = update_sql($query, $table, $field);
 }
 
 /**
- * Returns the last insert id.
+ * Returns the last insert id. This function is non thread safe.
  *
- * @param $table
+ * @param string $table
  *   The name of the table you inserted into.
- * @param $field
+ * @param string $field
  *   The name of the autoincrement field.
+ * @return int
+ *   The auto generated id used in the last query.
  */
 function db_last_insert_id($table, $field) {
   return db_result(db_query('SELECT LAST_INSERT_ID()'));
+}
+
+/**
+ * Lock a table.
+ *
+ * @param string $table
+ *   The name of the table to lock.
+ */
+function db_lock_table($table) {
+  db_query('LOCK TABLES {%l} WRITE', $table);
+}
+
+/**
+ * Unlock all locked tables.
+ */
+function db_unlock_tables() {
+  db_query('UNLOCK TABLES');
+}
+
+/**
+ * Check if a table exists.
+ *
+ * @param string $table
+ *   The name of the table.
+ * @return bool
+ *   TRUE if the table exists, and FALSE if the table does not exist.
+ */
+function db_table_exists($table) {
+  return (bool) db_fetch_object(db_query("SHOW TABLES LIKE '{%l}'", $table));
+}
+
+/**
+ * Check if a column exists in the given table.
+ *
+ * @param string $table
+ *   The name of the table.
+ * @param string $field
+ *   The name of the column.
+ * @return bool
+ *   TRUE if the column exists, and FALSE if the column does not exist.
+ */
+function db_column_exists($table, $field) {
+  return (bool) db_fetch_object(db_query("SHOW COLUMNS FROM {%l} LIKE '%l'", $table, $field));
 }

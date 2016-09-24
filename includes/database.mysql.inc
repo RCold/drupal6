@@ -14,30 +14,10 @@
 require_once './includes/database.mysql-common.inc';
 
 /**
- * Report database status.
- */
-function db_status_report($phase) {
-  $t = get_t();
-
-  $version = db_version();
-
-  $form['mysql'] = array(
-    'title' => $t('MySQL database'),
-    'value' => ($phase == 'runtime') ? l($version, 'admin/reports/status/sql') : $version,
-  );
-
-  if (version_compare($version, DRUPAL_MINIMUM_MYSQL) < 0) {
-    $form['mysql']['severity'] = REQUIREMENT_ERROR;
-    $form['mysql']['description'] = $t('Your MySQL Server is too old. Drupal requires at least MySQL %version.', array('%version' => DRUPAL_MINIMUM_MYSQL));
-  }
-
-  return $form;
-}
-
-/**
  * Returns the version of the database server currently in use.
  *
- * @return Database server version
+ * @return string
+ *   Database server version
  */
 function db_version() {
   list($version) = explode('-', mysql_get_server_info());
@@ -46,24 +26,30 @@ function db_version() {
 
 /**
  * Initialize a database connection.
+ *
+ * @param string $url
+ *   The database connection URL.
+ * @return resource
+ *   The database connection.
  */
 function db_connect($url) {
-  $url = parse_url($url);
+  global $db_collation;
 
   // Check if MySQL support is present in PHP
   if (!function_exists('mysql_connect')) {
     _db_error_page('Unable to use the MySQL database because the MySQL extension for PHP is not installed. Check your <code>php.ini</code> to see how you can enable it.');
   }
 
-  // Decode urlencoded information in the db connection string
-  $url['user'] = urldecode($url['user']);
+  $url_parts = parse_url($url);
+  // Decode urlencoded information in the database connection URL
+  $db_host = urldecode($url_parts['host']);
+  $db_user = urldecode($url_parts['user']);
   // Test if database URL has a password.
-  $url['pass'] = isset($url['pass']) ? urldecode($url['pass']) : '';
-  $url['host'] = urldecode($url['host']);
-  $url['path'] = urldecode($url['path']);
+  $db_pass = isset($url_parts['pass']) ? urldecode($url_parts['pass']) : '';
+  $db_name = substr(urldecode($url_parts['path']), 1);
 
   // Allow for non-standard MySQL port.
-  $url['host'] = $url['host'] .':'. isset($url['port']) ? $url['port'] : 3306;
+  $db_host .= ':'. isset($url_parts['port']) ? $url_parts['port'] : 3306;
 
   // - TRUE makes mysql_connect() always open a new link, even if
   //   mysql_connect() was called before with the same parameters.
@@ -71,8 +57,8 @@ function db_connect($url) {
   //   server.
   // - 2 means CLIENT_FOUND_ROWS: return the number of found
   //   (matched) rows, not the number of affected rows.
-  $connection = @mysql_connect($url['host'], $url['user'], $url['pass'], TRUE, 2);
-  if (!$connection || !mysql_select_db(substr($url['path'], 1))) {
+  $db_conn = @mysql_connect($db_host, $db_user, $db_pass, TRUE, 2);
+  if (!$db_conn || !mysql_select_db($db_name)) {
     // Show error screen otherwise
     _db_error_page(mysql_error());
   }
@@ -80,14 +66,14 @@ function db_connect($url) {
   // Force MySQL to use the UTF-8 character set. Also set the collation, if a
   // certain one has been set; otherwise, MySQL defaults to 'utf8_general_ci'
   // for UTF-8.
-  if (!empty($GLOBALS['db_collation'])) {
-    mysql_query('SET NAMES utf8 COLLATE '. $GLOBALS['db_collation'], $connection);
+  if (isset($db_collation) && is_string($db_collation)) {
+    mysql_query("SET NAMES 'utf8' COLLATE '". mysql_real_escape_string($db_collation, $db_conn) ."'", $db_conn);
   }
   else {
-    mysql_query('SET NAMES utf8', $connection);
+    mysql_query("SET NAMES 'utf8'", $db_conn);
   }
 
-  return $connection;
+  return $db_conn;
 }
 
 /**
@@ -124,7 +110,7 @@ function _db_query($query, $debug = 0) {
     print '<p>query: '. $query .'<br />error:'. mysql_error($active_db) .'</p>';
   }
 
-  if (!mysql_errno($active_db)) {
+  if (mysql_errno($active_db) == 0) {
     return $result;
   }
   else {
@@ -138,32 +124,28 @@ function _db_query($query, $debug = 0) {
 /**
  * Fetch one result row from the previous query as an object.
  *
- * @param $result
+ * @param resource $result
  *   A database query result resource, as returned from db_query().
- * @return
+ * @return object|bool
  *   An object representing the next row of the result, or FALSE. The attributes
  *   of this object are the table fields selected by the query.
  */
 function db_fetch_object($result) {
-  if ($result) {
-    return mysql_fetch_object($result);
-  }
+  return mysql_fetch_object($result);
 }
 
 /**
  * Fetch one result row from the previous query as an array.
  *
- * @param $result
+ * @param resource $result
  *   A database query result resource, as returned from db_query().
- * @return
+ * @return array|bool
  *   An associative array representing the next row of the result, or FALSE.
  *   The keys of this object are the names of the table fields selected by the
  *   query, and the values are the field values for this result row.
  */
 function db_fetch_array($result) {
-  if ($result) {
-    return mysql_fetch_array($result, MYSQL_ASSOC);
-  }
+  return mysql_fetch_array($result, MYSQL_ASSOC);
 }
 
 /**
@@ -172,14 +154,13 @@ function db_fetch_array($result) {
  * Only use this function if exactly one field is being selected; otherwise,
  * use db_fetch_object() or db_fetch_array().
  *
- * @param $result
+ * @param resource $result
  *   A database query result resource, as returned from db_query().
- *
- * @return
+ * @return mixed
  *   The resulting field or FALSE.
  */
 function db_result($result) {
-  if ($result && mysql_num_rows($result) > 0) {
+  if (mysql_num_rows($result) > 0) {
     // The mysql_fetch_row function has an optional second parameter $row
     // but that can't be used for compatibility with Oracle, DB2, etc.
     $array = mysql_fetch_row($result);
@@ -190,6 +171,9 @@ function db_result($result) {
 
 /**
  * Determine whether the previous query caused an error.
+ *
+ * @return int
+ *   The error number from the last query, or 0 (zero) if no error occurred.
  */
 function db_error() {
   global $active_db;
@@ -198,6 +182,9 @@ function db_error() {
 
 /**
  * Determine the number of rows changed by the preceding query.
+ *
+ * @return int
+ *   The number of affected rows on success, and -1 if the last query failed.
  */
 function db_affected_rows() {
   global $active_db;
@@ -205,102 +192,12 @@ function db_affected_rows() {
 }
 
 /**
- * Runs a limited-range query in the active database.
+ * Returns a properly formatted Binary Large Object value.
  *
- * Use this as a substitute for db_query() when a subset of the query is to be
- * returned.
- * User-supplied arguments to the query should be passed in as separate parameters
- * so that they can be properly escaped to avoid SQL injection attacks.
- *
- * @param $query
- *   A string containing an SQL query.
- * @param ...
- *   A variable number of arguments which are substituted into the query
- *   using printf() syntax. The query arguments can be enclosed in one
- *   array instead.
- *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
- *   in '') and %%.
- *
- *   NOTE: using this syntax will cast NULL and FALSE values to decimal 0,
- *   and TRUE values to decimal 1.
- *
- * @param $from
- *   The first result row to return.
- * @param $count
- *   The maximum number of result rows to return.
- * @return
- *   A database query result resource, or FALSE if the query was not executed
- *   correctly.
- */
-function db_query_range($query) {
-  $args = func_get_args();
-  $count = array_pop($args);
-  $from = array_pop($args);
-  array_shift($args);
-
-  $query = db_prefix_tables($query);
-  if (isset($args[0]) and is_array($args[0])) { // 'All arguments in one array' syntax
-    $args = $args[0];
-  }
-  _db_query_callback($args, TRUE);
-  $query = preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $query);
-  $query .= ' LIMIT '. (int)$from .', '. (int)$count;
-  return _db_query($query);
-}
-
-/**
- * Runs a SELECT query and stores its results in a temporary table.
- *
- * Use this as a substitute for db_query() when the results need to be stored
- * in a temporary table.
- *
- * User-supplied arguments to the query should be passed in as separate parameters
- * so that they can be properly escaped to avoid SQL injection attacks.
- *
- * Note that if you need to know how many results were returned, you should do
- * a SELECT COUNT(*) on the temporary table afterwards. db_affected_rows() does
- * not give consistent result across different database types in this case.
- *
- * @param $query
- *   A string containing a normal SELECT SQL query.
- * @param ...
- *   A variable number of arguments which are substituted into the query
- *   using printf() syntax. The query arguments can be enclosed in one
- *   array instead.
- *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
- *   in '') and %%.
- *
- *   NOTE: using this syntax will cast NULL and FALSE values to decimal 0,
- *   and TRUE values to decimal 1.
- * @param $table
- *   The name of the temporary table to select into. This name will not be
- *   prefixed as there is no risk of collision.
- *
- * @return
- *   A database query result resource, or FALSE if the query was not executed
- *   correctly.
- */
-function db_query_temporary($query) {
-  $args = func_get_args();
-  $tablename = array_pop($args);
-  array_shift($args);
-
-  $query = preg_replace('/^SELECT/i', 'CREATE TEMPORARY TABLE '. $tablename .' Engine=HEAP SELECT', db_prefix_tables($query));
-  if (isset($args[0]) and is_array($args[0])) { // 'All arguments in one array' syntax
-    $args = $args[0];
-  }
-  _db_query_callback($args, TRUE);
-  $query = preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $query);
-  return _db_query($query);
-}
-
-/**
- * Returns a properly formatted Binary Large OBject value.
- *
- * @param $data
+ * @param string $data
  *   Data to encode.
- * @return
- *  Encoded data.
+ * @return string
+ *   Encoded data.
  */
 function db_encode_blob($data) {
   global $active_db;
@@ -310,10 +207,10 @@ function db_encode_blob($data) {
 /**
  * Returns text from a Binary Large Object value.
  *
- * @param $data
+ * @param string $data
  *   Data to decode.
- * @return
- *  Decoded data.
+ * @return string
+ *   Decoded data.
  */
 function db_decode_blob($data) {
   return $data;
@@ -321,52 +218,15 @@ function db_decode_blob($data) {
 
 /**
  * Prepare user input for use in a database query, preventing SQL injection attacks.
+ *
+ * @param string $text
+ *   The string to escape.
+ * @return string
+ *   The escaped string.
  */
 function db_escape_string($text) {
   global $active_db;
   return mysql_real_escape_string($text, $active_db);
-}
-
-/**
- * Lock a table.
- */
-function db_lock_table($table) {
-  db_query('LOCK TABLES {'. db_escape_table($table) .'} WRITE');
-}
-
-/**
- * Unlock all locked tables.
- */
-function db_unlock_tables() {
-  db_query('UNLOCK TABLES');
-}
-
-/**
- * Check if a table exists.
- *
- * @param $table
- *   The name of the table.
- *
- * @return
- *   TRUE if the table exists, and FALSE if the table does not exist.
- */
-function db_table_exists($table) {
-  return (bool) db_fetch_object(db_query("SHOW TABLES LIKE '{". db_escape_table($table) ."}'"));
-}
-
-/**
- * Check if a column exists in the given table.
- *
- * @param $table
- *   The name of the table.
- * @param $column
- *   The name of the column.
- *
- * @return
- *   TRUE if the column exists, and FALSE if the column does not exist.
- */
-function db_column_exists($table, $column) {
-  return (bool) db_fetch_object(db_query("SHOW COLUMNS FROM {". db_escape_table($table) ."} LIKE '". db_escape_table($column) ."'"));
 }
 
 /**

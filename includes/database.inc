@@ -6,6 +6,27 @@
  */
 
 /**
+ * Report database status.
+ */
+function db_status_report($phase) {
+  $t = get_t();
+
+  $version = db_version();
+
+  $form['mysql'] = array(
+    'title' => $t('MySQL database'),
+    'value' => ($phase == 'runtime') ? l($version, 'admin/reports/status/sql') : $version,
+  );
+
+  if (version_compare($version, DRUPAL_MINIMUM_MYSQL) < 0) {
+    $form['mysql']['severity'] = REQUIREMENT_ERROR;
+    $form['mysql']['description'] = $t('Your MySQL Server is too old. Drupal requires at least MySQL %version.', array('%version' => DRUPAL_MINIMUM_MYSQL));
+  }
+
+  return $form;
+}
+
+/**
  * A hash value to check when outputting database errors, md5('DB_ERROR').
  *
  * @see drupal_error_handler()
@@ -50,19 +71,72 @@ define('DB_ERROR', 'a515ac9c2796ca0e23adbe92c68fc9fc');
  */
 
 /**
+ * Runs a basic query in the active database.
+ *
+ * User-supplied arguments to the query should be passed in as separate
+ * parameters so that they can be properly escaped to avoid SQL injection
+ * attacks.
+ *
+ * @param string $query
+ *   A string containing an SQL query.
+ * @param ...
+ *   A variable number of arguments which are substituted into the query
+ *   using printf() syntax. Instead of a variable number of query arguments,
+ *   you may also pass a single array containing the query arguments.
+ *
+ *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
+ *   in '') and %%.
+ *
+ *   NOTE: using this syntax will cast FALSE values to decimal 0,
+ *   and TRUE values to decimal 1.
+ * @return resource|bool
+ *   Successful SELECT, SHOW, DESCRIBE, EXPLAIN, or other queries which return a
+ *   set of results will return a database query result resource. Other
+ *   successful queries will return TRUE and failing queries will return FALSE.
+ */
+function db_query() {
+  $args = func_get_args();
+  $query = array_shift($args);
+
+  if (isset($args[0]) && is_array($args[0])) { // 'All arguments in one array' syntax
+    $args = $args[0];
+  }
+
+  _db_query_callback($args, TRUE);
+  $query = preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $query);
+  return _db_query($query);
+}
+
+/**
  * Perform an SQL query and return success or failure.
  *
- * @param $sql
- *   A string containing a complete SQL query.  %-substitution
- *   parameters are not supported.
- * @return
+ * @param string $query
+ *   A string containing an SQL query.
+ * @param ...
+ *   A variable number of arguments which are substituted into the query
+ *   using printf() syntax. Instead of a variable number of query arguments,
+ *   you may also pass a single array containing the query arguments.
+ *
+ *   Valid %-modifiers are: %s, %d, %f, %b (binary data, do not enclose
+ *   in '') and %%.
+ *
+ *   NOTE: using this syntax will cast FALSE values to decimal 0,
+ *   and TRUE values to decimal 1.
+ * @return array
  *   An array containing the keys:
  *      success: a boolean indicating whether the query succeeded
  *      query: the SQL query executed, passed through check_plain()
  */
-function update_sql($sql) {
-  $result = db_query($sql, true);
-  return array('success' => $result !== FALSE, 'query' => check_plain($sql));
+function update_sql() {
+  $args = func_get_args();
+  $query = array_shift($args);
+
+  if (isset($args[0]) && is_array($args[0])) { // 'All arguments in one array' syntax
+    $args = $args[0];
+  }
+
+  $result = db_query($query, $args);
+  return array('success' => $result !== FALSE, 'query' => check_plain($query));
 }
 
 /**
@@ -73,33 +147,32 @@ function update_sql($sql) {
  * tables, allowing Drupal to coexist with other systems in the same database if
  * necessary.
  *
- * @param $sql
+ * @param string $sql
  *   A string containing a partial or entire SQL query.
- * @return
+ * @return string
  *   The properly-prefixed string.
  */
 function db_prefix_tables($sql) {
   global $db_prefix;
 
-  if (is_array($db_prefix)) {
-    if (array_key_exists('default', $db_prefix)) {
-      $tmp = $db_prefix;
-      unset($tmp['default']);
-      foreach ($tmp as $key => $val) {
-        $sql = strtr($sql, array('{'. $key .'}' => $val . $key));
-      }
-      return strtr($sql, array('{' => $db_prefix['default'], '}' => ''));
-    }
-    else {
-      foreach ($db_prefix as $key => $val) {
-        $sql = strtr($sql, array('{'. $key .'}' => $val . $key));
-      }
-      return strtr($sql, array('{' => '', '}' => ''));
-    }
+  if (is_string($db_prefix)) {
+    $db_prefix = array('default' => $db_prefix);
   }
-  else {
-    return strtr($sql, array('{' => $db_prefix, '}' => ''));
+  elseif (!is_array($db_prefix)) {
+    $db_prefix = array('default' => '');
   }
+  elseif (!isset($db_prefix['default'])) {
+    $db_prefix['default'] = '';
+  }
+
+  $db_prefixes = $db_prefix;
+  unset($db_prefixes['default']);
+
+  foreach ($db_prefixes as $key => $value) {
+    $sql = strtr($sql, array('{' . $key . '}' => $value . $key));
+  }
+
+  return strtr($sql, array('{' => $db_prefix['default'], '}' => ''));
 }
 
 /**
@@ -114,42 +187,50 @@ function db_prefix_tables($sql) {
  * Be sure to change the connection back to the default when done with custom
  * code.
  *
- * @param $name
+ * @param string $name
  *   The key in the $db_url global variable from settings.php. If omitted, the
  *   default connection will be made active.
  *
- * @return
+ * @return string
  *   The name of the previously active database, or FALSE if none was found.
  */
 function db_set_active($name = 'default') {
   global $db_url, $db_type, $active_db;
   static $db_conns, $active_name = FALSE;
 
+  if (is_string($db_url)) {
+    if ($db_url == 'mysql://username:password@localhost/databasename') {
+      // Ignore the placeholder URL
+      $db_url = NULL;
+    }
+    else {
+      $db_url = array('default' => $db_url);
+    }
+  }
+  elseif (!is_array($db_url)) {
+    $db_url = NULL;
+  }
+
   if (empty($db_url)) {
-    include_once 'includes/install.inc';
+    include_once './includes/install.inc';
     install_goto('install.php');
   }
 
   if (!isset($db_conns[$name])) {
     // Initiate a new connection, using the named DB URL specified.
-    if (is_array($db_url)) {
-      $connect_url = array_key_exists($name, $db_url) ? $db_url[$name] : $db_url['default'];
-    }
-    else {
-      $connect_url = $db_url;
-    }
+    $url = array_key_exists($name, $db_url) ? $db_url[$name] : $db_url['default'];
 
-    $db_type = substr($connect_url, 0, strpos($connect_url, '://'));
-    $handler = "./includes/database.$db_type.inc";
+    $db_type = substr($url, 0, strpos($url, '://'));
+    $handler = './includes/database.'. $db_type .'.inc';
 
-    if (is_file($handler)) {
+    if (is_file($handler) && is_readable($handler)) {
       include_once $handler;
     }
     else {
-      _db_error_page("The database type '". $db_type ."' is unsupported. Please use either 'mysql' or 'mysqli' for MySQL, or 'pgsql' for PostgreSQL databases.");
+      _db_error_page("The database type '$db_type' is unsupported. Please use either 'mysql' or 'mysqli' for MySQL, or 'pgsql' for PostgreSQL databases.");
     }
 
-    $db_conns[$name] = db_connect($connect_url);
+    $db_conns[$name] = db_connect($url);
   }
 
   $previous_name = $active_name;
@@ -199,18 +280,33 @@ function db_is_active() {
 /**
  * Helper function for db_query().
  */
-function _db_query_callback($match, $init = FALSE) {
-  static $args = NULL;
+function _db_query_callback($matches, $init = FALSE) {
+  global $db_prefix;
+  static $args;
+
   if ($init) {
-    $args = $match;
-    return;
+    $args = $matches;
+    return NULL;
   }
 
-  switch ($match[1]) {
-    case '%d': // We must use type casting to int to convert FALSE/NULL/(TRUE?)
+  if (is_string($db_prefix)) {
+    $db_prefix = array('default' => $db_prefix);
+  }
+  elseif (!is_array($db_prefix)) {
+    $db_prefix = array('default' => '');
+  }
+  elseif (!isset($db_prefix['default'])) {
+    $db_prefix['default'] = '';
+  }
+
+  switch ($matches[1]) {
+    case '%d':
       $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
       // Do we need special bigint handling?
-      if ($value > PHP_INT_MAX) {
+      if ($value > 2147483647 || $value < -2147483647) {
         $precision = ini_get('precision');
         @ini_set('precision', 16);
         $value = sprintf('%.0f', $value);
@@ -221,19 +317,67 @@ function _db_query_callback($match, $init = FALSE) {
       }
       // We don't need db_escape_string as numbers are db-safe.
       return $value;
-    case '%s':
-      return db_escape_string(array_shift($args));
+    case "'%s'":
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return "'". db_escape_string($value) ."'";
     case '%n':
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
       // Numeric values have arbitrary precision, so can't be treated as float.
       // is_numeric() allows hex values (0xFF), but they are not valid.
-      $value = trim(array_shift($args));
+      $value = trim($value);
       return is_numeric($value) && !preg_match('/x/i', $value) ? $value : '0';
     case '%%':
       return '%';
     case '%f':
-      return (float) array_shift($args);
-    case '%b': // binary data
-      return db_encode_blob(array_shift($args));
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return (float) $value;
+    case '%b':
+      // Binary data.
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return db_encode_blob($value);
+    case '%l':
+      // Dynamic table, column or constraint name.
+      $value = array_shift($args);
+      return db_escape_table($value);
+    case '%v':
+      // Mixed variable. Internal use only.
+      $value = array_shift($args);
+      if (is_numeric(trim($value)) && !preg_match('/x/i', $value)) {
+        return trim($value);
+      }
+      elseif (is_string($value)) {
+        return "'". db_escape_string($value) ."'";
+      }
+      return 'NULL';
+    default:
+      if (preg_match('/\{([^}]*)\}/', $matches[1], $matches)) {
+        // Prefix table name.
+        $table = $matches[1];
+        if ($table == '%l') {
+          // Dynamic table name.
+          $table = array_shift($args);
+        }
+        if (array_key_exists($table, $db_prefix)) {
+          $table = $db_prefix[$table] . $table;
+        }
+        else {
+          $table = $db_prefix['default'] . $table;
+        }
+        return db_escape_table($table);
+      }
+      return '';
   }
 }
 
@@ -243,20 +387,22 @@ function _db_query_callback($match, $init = FALSE) {
  * Given a Schema API field type, return correct %-placeholders to
  * embed in a query
  *
- * @param $arguments
- *  An array with at least one element.
- * @param $type
+ * @param array $args
+ *   An array with at least one element.
+ * @param string $type
  *   The Schema API type of a field (e.g. 'int', 'text', or 'varchar').
+ * @return string
+ *   A string of placeholders to embed in a query.
  */
-function db_placeholders($arguments, $type = 'int') {
+function db_placeholders($args, $type = 'int') {
   $placeholder = db_type_placeholder($type);
-  return implode(',', array_fill(0, count($arguments), $placeholder));
+  return implode(', ', array_fill(0, count($args), $placeholder));
 }
 
 /**
  * Indicates the place holders that should be replaced in _db_query_callback().
  */
-define('DB_QUERY_REGEXP', '/(%d|%s|%%|%f|%b|%n)/');
+define('DB_QUERY_REGEXP', "/(%d|'%s'|%%|%f|%b|%n|%l|%v|\\{[^}]*\\})/");
 
 /**
  * Helper function for db_rewrite_sql.
@@ -264,24 +410,25 @@ define('DB_QUERY_REGEXP', '/(%d|%s|%%|%f|%b|%n)/');
  * Collects JOIN and WHERE statements via hook_db_rewrite_sql()
  * Decides whether to select primary_key or DISTINCT(primary_key)
  *
- * @param $query
+ * @param string $query
  *   Query to be rewritten.
- * @param $primary_table
+ * @param string $primary_table
  *   Name or alias of the table which has the primary key field for this query.
  *   Typical table names would be: {blocks}, {comments}, {forum}, {node},
  *   {menu}, {term_data} or {vocabulary}. However, in most cases the usual
  *   table alias (b, c, f, n, m, t or v) is used instead of the table name.
- * @param $primary_field
+ * @param string $primary_field
  *   Name of the primary field.
- * @param $args
+ * @param array $args
  *   Array of additional arguments.
- * @return
+ * @return array
  *   An array: join statements, where statements, field or DISTINCT(field).
  */
 function _db_rewrite_sql($query = '', $primary_table = 'n', $primary_field = 'nid', $args = array()) {
   $where = array();
   $join = array();
   $distinct = FALSE;
+
   foreach (module_implements('db_rewrite_sql') as $module) {
     $result = module_invoke($module, 'db_rewrite_sql', $query, $primary_table, $primary_field, $args);
     if (isset($result) && is_array($result)) {
@@ -310,18 +457,18 @@ function _db_rewrite_sql($query = '', $primary_table = 'n', $primary_field = 'ni
  * Rewrites node, taxonomy and comment queries. Use it for listing queries. Do not
  * use FROM table1, table2 syntax, use JOIN instead.
  *
- * @param $query
+ * @param string $query
  *   Query to be rewritten.
- * @param $primary_table
+ * @param string $primary_table
  *   Name or alias of the table which has the primary key field for this query.
  *   Typical table names would be: {blocks}, {comments}, {forum}, {node},
  *   {menu}, {term_data} or {vocabulary}. However, it is more common to use the
  *   the usual table aliases: b, c, f, n, m, t or v.
- * @param $primary_field
+ * @param string $primary_field
  *   Name of the primary field.
- * @param $args
+ * @param array $args
  *   An array of arguments, passed to the implementations of hook_db_rewrite_sql.
- * @return
+ * @return string
  *   The original query with JOIN and WHERE statements inserted from
  *   hook_db_rewrite_sql implementations. nid is rewritten if needed.
  */
@@ -346,10 +493,10 @@ function db_rewrite_sql($query, $primary_table = 'n', $primary_field = 'nid',  $
       )[^()]+WHERE)
     }x';
     preg_match($pattern, $query, $matches);
-    if (!$where) {
+    if (empty($where)) {
       $where = '1 = 1';
     }
-    if ($matches) {
+    if (!empty($matches)) {
       $n = strlen($matches[1]);
       $second_part = substr($query, $n);
       $first_part = substr($matches[1], 0, $n - 5) ." $join WHERE $where AND ( ";
@@ -378,10 +525,10 @@ function db_rewrite_sql($query, $primary_table = 'n', $primary_field = 'nid',  $
       }
     }
     elseif ($pos === FALSE) {
-      $query .= " $join WHERE $where";
+      $query .= ' '. $join .' WHERE '. $where;
     }
     else {
-      $query = substr($query, 0, -$pos) . " $join WHERE $where " . substr($query, -$pos);
+      $query = substr($query, 0, -$pos) .' '. $join .' WHERE '. $where .' '. substr($query, -$pos);
     }
   }
 
@@ -394,33 +541,32 @@ function db_rewrite_sql($query, $primary_table = 'n', $primary_field = 'nid',  $
  * The supplied query should not contain a DISTINCT flag. This will not, and
  * never did guarantee that you will obtain distinct values of $table.$field.
  *
- * @param $table
+ * @param string $table
  *   Unused. Kept to retain API compatibility.
- * @param $field
+ * @param string $field
  *   Unused. Kept to retain API compatibility.
- * @param $query
+ * @param string $query
  *   Query to which the DISTINCT flag should be applied.
- *
- * @return
+ * @return string
  *   SQL query with the DISTINCT flag set.
  */
 function db_distinct_field($table, $field, $query) {
-  $matches = array();
-  if (!preg_match('/^SELECT\s*DISTINCT/i', $query, $matches)) {
-    // Only add distinct to the outer SELECT to avoid messing up subqueries.
-    $query = preg_replace('/^SELECT/i', 'SELECT DISTINCT', $query);
-  }
-
-  return $query;
+  // Only add distinct to the outer SELECT to avoid messing up subqueries.
+  return preg_replace('/^\s*SELECT\b(?!\s+DISTINCT\b)/i', 'SELECT DISTINCT', $query);
 }
 
 /**
  * Restrict a dynamic table, column or constraint name to safe characters.
  *
  * Only keeps alphanumeric and underscores.
+ *
+ * @param string $name
+ *   Dynamic table, column or constraint name to escape.
+ * @return string
+ *   The escaped dynamic table, column or constraint name as a string.
  */
-function db_escape_table($string) {
-  return preg_replace('/[^A-Za-z0-9_]+/', '', $string);
+function db_escape_table($name) {
+  return preg_replace('/[^A-Za-z0-9_]+/', '', $name);
 }
 
 /**
@@ -433,7 +579,7 @@ function db_escape_table($string) {
  *
  * A Drupal schema definition is an array structure representing one or
  * more tables and their related keys and indexes. A schema is defined by
- * hook_schema(), which usually lives in a modulename.install file.
+ * hook_schema(), which usually lives in a module_name.install file.
  *
  * By implementing hook_schema() and specifying the tables your module
  * declares, you can easily create and drop these tables on all
@@ -451,7 +597,7 @@ function db_escape_table($string) {
  *     curly-brackets.  For example, the node_revisions table
  *     description field might contain "Stores per-revision title and
  *     body data for each {node}."
- *   - 'fields': An associative array ('fieldname' => specification)
+ *   - 'fields': An associative array ('field_name' => specification)
  *     that describes the table's database columns.  The specification
  *     is also an array.  The following specification parameters are defined:
  *     - 'description': A string describing this field and its purpose.
@@ -459,17 +605,17 @@ function db_escape_table($string) {
  *       curly-brackets.  For example, the node table vid field
  *       description might contain "Always holds the largest (most
  *       recent) {node_revisions}.vid value for this nid."
- *     - 'type': The generic datatype: 'varchar', 'int', 'serial'
+ *     - 'type': The generic data type: 'varchar', 'int', 'serial'
  *       'float', 'numeric', 'text', 'blob' or 'datetime'.  Most types
  *       just map to the according database engine specific
- *       datatypes.  Use 'serial' for auto incrementing fields. This
+ *       data types.  Use 'serial' for auto incrementing fields. This
  *       will expand to 'int auto_increment' on mysql.
  *     - 'serialize': A boolean indicating whether the field will be stored
          as a serialized string.
  *     - 'size': The data size: 'tiny', 'small', 'medium', 'normal',
  *       'big'.  This is a hint about the largest value the field will
  *       store and determines which of the database engine specific
- *       datatypes will be used (e.g. on MySQL, TINYINT vs. INT vs. BIGINT).
+ *       data types will be used (e.g. on MySQL, TINYINT vs. INT vs. BIGINT).
  *       'normal', the default, selects the base type (e.g. on MySQL,
  *       INT, VARCHAR, BLOB, etc.).
  *       Not all sizes are available for all data types. See
@@ -494,10 +640,10 @@ function db_escape_table($string) {
  *     'numeric' columns must specify 'precision' and 'scale'.
  *  - 'primary key': An array of one or more key column specifiers (see below)
  *    that form the primary key.
- *  - 'unique keys': An associative array of unique keys ('keyname' =>
+ *  - 'unique keys': An associative array of unique keys ('key_name' =>
  *    specification).  Each specification is an array of one or more
  *    key column specifiers (see below) that form a unique key on the table.
- *  - 'indexes':  An associative array of indexes ('indexame' =>
+ *  - 'indexes':  An associative array of indexes ('index_name' =>
  *    specification).  Each specification is an array of one or more
  *    key column specifiers (see below) that form an index on the
  *    table.
@@ -538,15 +684,16 @@ function db_escape_table($string) {
  /**
  * Create a new table from a Drupal table definition.
  *
- * @param $ret
+ * @param array $ret
  *   Array to which query results will be added.
- * @param $name
+ * @param string $table
  *   The name of the table to create.
- * @param $table
+ * @param array $schema
  *   A Schema API table definition array.
  */
-function db_create_table(&$ret, $name, $table) {
-  $statements = db_create_table_sql($name, $table);
+function db_create_table(&$ret, $table, $schema) {
+  $statements = db_create_table_sql($table, $schema);
+
   foreach ($statements as $statement) {
     $ret[] = update_sql($statement);
   }
@@ -558,13 +705,14 @@ function db_create_table(&$ret, $name, $table) {
  * This is usually an identity function but if a key/index uses a column prefix
  * specification, this function extracts just the name.
  *
- * @param $fields
+ * @param array $fields
  *   An array of key/index column specifiers.
- * @return
+ * @return array
  *   An array of field names.
  */
 function db_field_names($fields) {
   $ret = array();
+
   foreach ($fields as $field) {
     if (is_array($field)) {
       $ret[] = $field[0];
@@ -573,6 +721,7 @@ function db_field_names($fields) {
       $ret[] = $field;
     }
   }
+
   return $ret;
 }
 
@@ -582,9 +731,9 @@ function db_field_names($fields) {
  * Embed the placeholder in a query to be passed to db_query and and pass as an
  * argument to db_query a value of the specified type.
  *
- * @param $type
+ * @param string $type
  *   The Schema API type of a field.
- * @return
+ * @return string
  *   The placeholder string to embed in a query for that type.
  */
 function db_type_placeholder($type) {
@@ -594,28 +743,24 @@ function db_type_placeholder($type) {
     case 'text':
     case 'datetime':
       return "'%s'";
-
     case 'numeric':
-      // Numeric values are arbitrary precision numbers.  Syntacically, numerics
-      // should be specified directly in SQL. However, without single quotes
-      // the %s placeholder does not protect against non-numeric characters such
-      // as spaces which would expose us to SQL injection.
+      // Numeric values are arbitrary precision numbers.  Syntactically,
+      // numeric should be specified directly in SQL. However, without single
+      // quotes the %s placeholder does not protect against non-numeric
+      // characters such as spaces which would expose us to SQL injection.
       return '%n';
-
     case 'serial':
     case 'int':
       return '%d';
-
     case 'float':
       return '%f';
-
     case 'blob':
       return '%b';
+    default:
+      // There is no safe value to return here, so return something that
+      // will cause the query to fail.
+      return 'unsupported type '. $type .' for db_type_placeholder';
   }
-
-  // There is no safe value to return here, so return something that
-  // will cause the query to fail.
-  return 'unsupported type '. $type .'for db_type_placeholder';
 }
 
 /**

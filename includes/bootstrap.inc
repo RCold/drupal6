@@ -964,7 +964,7 @@ function request_uri() {
  *
  * @see watchdog_severity_levels()
  */
-function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NOTICE, $link = NULL) {
+function watchdog($type, $message, $variables = array(), $severity = WATCHDOG_NOTICE, $link = '') {
   global $user, $base_root;
 
   // Prepare the fields to be logged
