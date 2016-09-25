@@ -282,7 +282,11 @@ function _db_query_callback($matches, $init = FALSE) {
 
   switch ($matches[1]) {
     case '%d':
-      $value = trim(array_shift($args));
+      $value = array_shift($args);
+      if (is_bool($value)) {
+        return (int) $value;
+      }
+      $value = trim($value);
       // 64-bit integer values can't be treated as int in 32-bit systems.
       // is_numeric() allows decimal part, exponential part (+0123.45e6) and
       // hex values (0xf4c3b00c), but they are not valid.
@@ -321,6 +325,9 @@ function _db_query_callback($matches, $init = FALSE) {
     case '%v':
       // Mixed variable. Internal use only.
       $value = array_shift($args);
+      if (is_bool($value)) {
+        return (int) $value;
+      }
       $numeric = trim($value);
       if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
         return $numeric;
