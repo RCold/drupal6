@@ -103,7 +103,7 @@ function default_profile_tasks(&$task, $url) {
       'modified' => TRUE,
       'locked' => FALSE,
       'help' => '',
-      'min_word_count' => '',
+      'min_word_count' => 0,
     ),
     array(
       'type' => 'story',
@@ -114,7 +114,7 @@ function default_profile_tasks(&$task, $url) {
       'modified' => TRUE,
       'locked' => FALSE,
       'help' => '',
-      'min_word_count' => '',
+      'min_word_count' => 0,
     ),
   );
 
