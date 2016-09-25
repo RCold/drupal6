@@ -895,10 +895,10 @@ function db_change_field(&$ret, $table, $field, $new_field, $spec, $new_keys = a
     $type = 'integer';
   }
 
-  $ret[] = update_sql('UPDATE {%l} SET %l = CAST(%l_old AS %s)', $table, $new_field, $field, $type);
+  $ret[] = update_sql("UPDATE {%l} SET %l = CAST(%l_old AS '%s')", $table, $new_field, $field, $type);
 
   if ($not_null) {
-    $ret[] = update_sql("ALTER TABLE {%l} ALTER COLUMN %l SET NOT NULL", $table, $new_field);
+    $ret[] = update_sql('ALTER TABLE {%l} ALTER COLUMN %l SET NOT NULL', $table, $new_field);
   }
 
   db_drop_field($ret, $table, $field .'_old');
