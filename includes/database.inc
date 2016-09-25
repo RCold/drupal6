@@ -114,7 +114,9 @@ function update_sql() {
     $args = $args[0];
   }
 
-  $result = db_query($query, $args);
+  _db_query_callback($args, TRUE);
+  $query = preg_replace_callback(DB_QUERY_REGEXP, '_db_query_callback', $query);
+  $result = _db_query($query);
   return array('success' => $result !== FALSE, 'query' => check_plain($query));
 }
 
@@ -341,22 +343,19 @@ function _db_query_callback($matches, $init = FALSE) {
       }
       return 'NULL';
     default:
-      if (preg_match('/\{([^}]*)\}/', $matches[1], $matches)) {
-        // Prefix table name.
-        $table = $matches[1];
-        if ($table == '%l') {
-          // Dynamic table name.
-          $table = array_shift($args);
-        }
-        if (array_key_exists($table, $db_prefix)) {
-          $table = $db_prefix[$table] . $table;
-        }
-        else {
-          $table = $db_prefix['default'] . $table;
-        }
-        return db_escape_table($table);
+      // Prefix table name.
+      $table = trim(substr($matches[1], 1, -1));
+      if ($table == '%l') {
+        // Dynamic table name.
+        $table = array_shift($args);
       }
-      return '';
+      if (array_key_exists($table, $db_prefix)) {
+        $table = $db_prefix[$table] . $table;
+      }
+      else {
+        $table = $db_prefix['default'] . $table;
+      }
+      return db_escape_table($table);
   }
 }
 
