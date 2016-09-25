@@ -282,22 +282,11 @@ function _db_query_callback($matches, $init = FALSE) {
 
   switch ($matches[1]) {
     case '%d':
-      $value = array_shift($args);
-      if (is_null($value)) {
-        return 'NULL';
-      }
-      // Do we need special bigint handling?
-      if ($value > 2147483647 || $value < -2147483647) {
-        $precision = ini_get('precision');
-        @ini_set('precision', 16);
-        $value = sprintf('%.0f', $value);
-        @ini_set('precision', $precision);
-      }
-      else {
-        $value = (int) $value;
-      }
-      // We don't need db_escape_string as numbers are db-safe.
-      return $value;
+      $value = trim(array_shift($args));
+      // 64-bit integer values can't be treated as int in 32-bit systems.
+      // is_numeric() allows decimal part, exponential part (+0123.45e6) and
+      // hex values (0xf4c3b00c), but they are not valid.
+      return is_numeric($value) && empty(strpbrk($value, '.EeXx')) ? $value : 'NULL';
     case "'%s'":
       $value = array_shift($args);
       if (is_null($value)) {
@@ -305,14 +294,11 @@ function _db_query_callback($matches, $init = FALSE) {
       }
       return "'". db_escape_string($value) ."'";
     case '%n':
-      $value = array_shift($args);
-      if (is_null($value)) {
-        return 'NULL';
-      }
+      $value = trim(array_shift($args));
       // Numeric values have arbitrary precision, so can't be treated as float.
-      // is_numeric() allows hex values (0xFF), but they are not valid.
-      $value = trim($value);
-      return is_numeric($value) && !preg_match('/x/i', $value) ? $value : '0';
+      // is_numeric() allows exponential part (+0123.45e6) and hex values
+      // (0xf4c3b00c), but they are not valid.
+      return is_numeric($value) && empty(strpbrk($value, 'EeXx')) ? $value : 'NULL';
     case '%%':
       return '%';
     case '%f':
@@ -335,10 +321,11 @@ function _db_query_callback($matches, $init = FALSE) {
     case '%v':
       // Mixed variable. Internal use only.
       $value = array_shift($args);
-      if (is_numeric(trim($value)) && !preg_match('/x/i', $value)) {
-        return trim($value);
+      $numeric = trim($value);
+      if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
+        return $numeric;
       }
-      elseif (is_string($value)) {
+      if (is_string($value)) {
         return "'". db_escape_string($value) ."'";
       }
       return 'NULL';

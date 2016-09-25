@@ -596,8 +596,9 @@ function _db_create_field_sql($field, $spec) {
 
   if (isset($spec['default'])) {
     $default = $spec['default'];
-    if (is_numeric(trim($default)) && !preg_match('/x/i', $default)) {
-      $default = trim($default);
+    $numeric = trim($default);
+    if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
+      $default = $numeric;
     }
     elseif (is_string($default)) {
       $default = "'". db_escape_string($default) ."'";
