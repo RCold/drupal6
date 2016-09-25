@@ -103,7 +103,7 @@ function sess_write($key, $value) {
     return TRUE;
   }
 
-  db_query("UPDATE {sessions} SET uid = %d, cache = %d, hostname = '%s', session = '%s', timestamp = %d WHERE sid = '%s'", $user->uid, isset($user->cache) ? $user->cache : '', ip_address(), $value, time(), $key);
+  db_query("UPDATE {sessions} SET uid = %d, cache = %d, hostname = '%s', session = '%s', timestamp = %d WHERE sid = '%s'", $user->uid, isset($user->cache) ? $user->cache : 0, ip_address(), $value, time(), $key);
   if (db_affected_rows()) {
     // Last access time is updated no more frequently than once every 180 seconds.
     // This reduces contention in the users table.
