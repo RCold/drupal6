@@ -1760,7 +1760,7 @@ function system_run_cron() {
  */
 function system_php() {
   phpinfo();
-  exit();
+  return NULL;
 }
 
 /**
