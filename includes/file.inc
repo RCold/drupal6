@@ -1071,7 +1071,7 @@ function file_download_access($filepath) {
  *   "filename", "basename", and "name" members corresponding to the
  *   matching files.
  */
-function file_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $callback = 0, $recurse = TRUE, $key = 'filename', $min_depth = 0, $depth = 0) {
+function file_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $callback = '', $recurse = TRUE, $key = 'filename', $min_depth = 0, $depth = 0) {
   $key = (in_array($key, array('filename', 'basename', 'name')) ? $key : 'filename');
   $files = array();
 
