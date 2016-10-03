@@ -256,7 +256,7 @@ function db_is_active() {
   return !empty($active_db);
 }
 
-function _db_process_sql($query, $args) {
+function _db_process_sql() {
   global $db_prefix;
 
   if (is_string($db_prefix)) {
@@ -269,7 +269,14 @@ function _db_process_sql($query, $args) {
     $db_prefix['default'] = '';
   }
 
-  $query = preg_replace_callback("/%d|'%s'|%n|%%|%f|%b|%l|%v|\\{[^}]*\\}/", function ($matches) use (&$args, $db_prefix) {
+  $args = func_get_args();
+  $query = array_shift($args);
+
+  if (isset($args[0]) && is_array($args[0])) { // 'All arguments in one array' syntax
+    $args = $args[0];
+  }
+
+  $query = preg_replace_callback("/%d|'%s'|%s|%n|%%|%f|%b|%l|%v|\\{[^}]*\\}/", function ($matches) use (&$args, $db_prefix) {
     switch ($matches[0]) {
       case '%d':
         $value = array_shift($args);
@@ -287,6 +294,9 @@ function _db_process_sql($query, $args) {
           return 'NULL';
         }
         return "'". db_escape_string($value) ."'";
+      case '%s':
+        $value = array_shift($args);
+        return db_escape_string($value);
       case '%n':
         $value = trim(array_shift($args));
         // Numeric values have arbitrary precision, so can't be treated as float.
