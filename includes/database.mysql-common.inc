@@ -64,8 +64,7 @@ function db_query_range() {
     $args = $args[0];
   }
 
-  $query .= ' LIMIT %d, %d';
-  array_push($args, $from, $count);
+  $query .= _db_process_sql(' LIMIT %d, %d', $from, $count);
   return db_query($query, $args);
 }
 

@@ -253,8 +253,7 @@ function db_query_range() {
     $args = $args[0];
   }
 
-  $query .= ' LIMIT %d OFFSET %d';
-  array_push($args, $count, $from);
+  $query .= _db_process_sql(' LIMIT %d OFFSET %d', $count, $from);
   return db_query($query, $args);
 }
 
