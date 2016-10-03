@@ -77,7 +77,7 @@ function blogapi_update_6000() {
  * This table was introduced in Drupal 6.4.
  */
 function blogapi_update_6001() {
-    $schema['blogapi_files'] = array(
+  $schema['blogapi_files'] = array(
     'description' => 'Stores information for files uploaded via the blogapi.',
     'fields' => array(
       'fid' => array(

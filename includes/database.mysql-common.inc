@@ -224,7 +224,9 @@ function _db_create_field_sql($field, $spec) {
   }
 
   if ($spec['type'] == 'serial') {
-    $spec['unsigned'] = FALSE;
+    $spec['unsigned'] = TRUE;
+    $spec['not null'] = TRUE;
+    unset($spec['default']);
   }
 
   // Set the correct database-engine specific data type.
@@ -255,22 +257,7 @@ function _db_create_field_sql($field, $spec) {
   }
 
   if (isset($spec['default'])) {
-    $default = $spec['default'];
-    $numeric = trim($default);
-    if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
-      $default = $numeric;
-    }
-    elseif (is_string($default)) {
-      $default = "'". db_escape_string($default) ."'";
-    }
-    else {
-      $default = 'NULL';
-    }
-    $sql .= ' DEFAULT '. $default;
-  }
-
-  if (empty($spec['not null']) && !isset($spec['default'])) {
-    $sql .= ' DEFAULT NULL';
+    $sql .= _db_process_sql(' DEFAULT '. db_type_placeholder($spec['type']), $spec['default']);
   }
 
   return $sql;
