@@ -209,13 +209,13 @@ function taxonomy_save_vocabulary(&$edit) {
     module_invoke_all('taxonomy', 'update', 'vocabulary', $edit);
     $status = SAVED_UPDATED;
   }
-  else if (!empty($edit['vid'])) {
+  elseif (!empty($edit['vid'])) {
     $status = taxonomy_del_vocabulary($edit['vid']);
   }
   else {
     drupal_write_record('vocabulary', $edit);
     foreach ($edit['nodes'] as $type => $selected) {
-      db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", $edit['vid'], $type);
+      db_query("INSERT INTO {vocabulary_node_types} (vid, type) VALUES (%d, '%s')", 0, $type);
     }
     module_invoke_all('taxonomy', 'insert', 'vocabulary', $edit);
     $status = SAVED_NEW;
