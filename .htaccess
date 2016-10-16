@@ -31,28 +31,22 @@ DirectoryIndex index.php
 
 # PHP 5, Apache 1 and 2.
 <IfModule mod_php5.c>
-  php_value magic_quotes_gpc                0
-  php_value register_globals                0
-  php_value session.auto_start              0
+  php_flag magic_quotes_gpc                 off
+  php_flag register_globals                 off
+  php_flag session.auto_start               off
   php_value mbstring.http_input             pass
   php_value mbstring.http_output            pass
-  php_value mbstring.encoding_translation   0
-  # PHP 5.6 has deprecated $HTTP_RAW_POST_DATA and produces warnings if this is
-  # not set.
-  php_value always_populate_raw_post_data   -1
+  php_flag mbstring.encoding_translation    off
 </IfModule>
 
 # PHP 7, Apache 1 and 2.
 <IfModule mod_php7.c>
-  php_value magic_quotes_gpc                0
-  php_value register_globals                0
-  php_value session.auto_start              0
+  php_flag magic_quotes_gpc                 off
+  php_flag register_globals                 off
+  php_flag session.auto_start               off
   php_value mbstring.http_input             pass
   php_value mbstring.http_output            pass
-  php_value mbstring.encoding_translation   0
-  # PHP 5.6 has deprecated $HTTP_RAW_POST_DATA and produces warnings if this is
-  # not set.
-  php_value always_populate_raw_post_data   -1
+  php_flag mbstring.encoding_translation    off
 </IfModule>
 
 # Requires mod_expires to be enabled.

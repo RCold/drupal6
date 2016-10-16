@@ -134,8 +134,8 @@ function drupal_xml_parser_create(&$data) {
   }
 
   // Check for an encoding declaration in the XML prolog if no BOM was found.
-  if (!$bom && preg_match('/^<\?xml[^>]+encoding="([^"]+)"/', $data, $match)) {
-    $encoding = $match[1];
+  if (!$bom && preg_match('/^<\?xml[^>]+encoding="([^"]+)"/', $data, $matches) > 0) {
+    $encoding = $matches[1];
   }
 
   // Unsupported encodings are converted here into UTF-8.
@@ -334,21 +334,25 @@ function _mime_header_decode($matches) {
  *   The input $text, with all HTML entities decoded once.
  */
 function decode_entities($text, $exclude = array()) {
-  static $html_entities;
-  if (!isset($html_entities)) {
-    include_once './includes/unicode.entities.inc';
-  }
-
   // Flip the exclude list so that we can do quick lookups later.
   $exclude = array_flip($exclude);
 
-  // Use a regexp to select all entities in one pass, to avoid decoding 
-  // double-escaped entities twice. The PREG_REPLACE_EVAL modifier 'e' is
-  // being used to allow for a callback (see 
-  // http://php.net/manual/en/reference.pcre.pattern.modifiers).
-  return preg_replace_callback('/&(#x?)?([A-Za-z0-9]+);/', function ($matches) use ($html_entities, $exclude) {
-    _decode_entities($matches[1], $matches[2], $matches[0], $html_entities, $exclude);
-  }, $text);
+  // Use a regexp to select all entities in one pass, to avoid decoding
+  // double-escaped entities twice.
+  _decode_entities_callback(NULL, $exclude);
+  return preg_replace_callback('/&(#x?)?([A-Za-z0-9]+);/', '_decode_entities_callback', $text);
+}
+
+function _decode_entities_callback($matches, $init = NULL) {
+  static $html_entities, $exclude;
+  if (!isset($html_entities)) {
+    include_once './includes/unicode.entities.inc';
+  }
+  if (isset($init)) {
+    $exclude = $init;
+    return NULL;
+  }
+  return _decode_entities($matches[1], $matches[2], $matches[0], $html_entities, $exclude);
 }
 
 /**
