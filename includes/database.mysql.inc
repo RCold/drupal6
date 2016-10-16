@@ -29,6 +29,7 @@ function db_version() {
  *
  * @param string $url
  *   The database connection URL.
+ *
  * @return resource
  *   The database connection.
  */
@@ -49,7 +50,9 @@ function db_connect($url) {
   $db_name = substr(urldecode($url_parts['path']), 1);
 
   // Allow for non-standard MySQL port.
-  $db_host .= ':'. isset($url_parts['port']) ? $url_parts['port'] : 3306;
+  if (isset($url_parts['port'])) {
+    $db_host .= $url_parts['port'];
+  }
 
   // - TRUE makes mysql_connect() always open a new link, even if
   //   mysql_connect() was called before with the same parameters.
@@ -84,7 +87,7 @@ function _db_query($query, $debug = 0) {
 
   if (variable_get('dev_query', 0)) {
     list($usec, $sec) = explode(' ', microtime());
-    $timer = (float)$usec + (float)$sec;
+    $timer = (float) $usec + (float) $sec;
     // If devel.module query logging is enabled, prepend a comment with the username and calling function
     // to the SQL string. This is useful when running mysql's SHOW PROCESSLIST to learn what exact
     // code is issueing the slow query.
@@ -101,7 +104,7 @@ function _db_query($query, $debug = 0) {
   if (variable_get('dev_query', 0)) {
     $query = $bt[2]['function'] ."\n". $query;
     list($usec, $sec) = explode(' ', microtime());
-    $stop = (float)$usec + (float)$sec;
+    $stop = (float) $usec + (float) $sec;
     $diff = $stop - $timer;
     $queries[] = array($query, $diff);
   }
@@ -126,6 +129,7 @@ function _db_query($query, $debug = 0) {
  *
  * @param resource $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return object|bool
  *   An object representing the next row of the result, or FALSE. The attributes
  *   of this object are the table fields selected by the query.
@@ -139,6 +143,7 @@ function db_fetch_object($result) {
  *
  * @param resource $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return array|bool
  *   An associative array representing the next row of the result, or FALSE.
  *   The keys of this object are the names of the table fields selected by the
@@ -156,6 +161,7 @@ function db_fetch_array($result) {
  *
  * @param resource $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return mixed
  *   The resulting field or FALSE.
  */
@@ -196,6 +202,7 @@ function db_affected_rows() {
  *
  * @param string $data
  *   Data to encode.
+ *
  * @return string
  *   Encoded data.
  */
@@ -209,6 +216,7 @@ function db_encode_blob($data) {
  *
  * @param string $data
  *   Data to decode.
+ *
  * @return string
  *   Decoded data.
  */
@@ -217,10 +225,12 @@ function db_decode_blob($data) {
 }
 
 /**
- * Prepare user input for use in a database query, preventing SQL injection attacks.
+ * Prepare user input for use in a database query, preventing SQL injection
+ * attacks.
  *
  * @param string $text
  *   The string to escape.
+ *
  * @return string
  *   The escaped string.
  */

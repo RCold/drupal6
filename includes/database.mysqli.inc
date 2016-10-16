@@ -2,11 +2,13 @@
 
 /**
  * @file
- * Database interface code for MySQL database servers using the mysqli client libraries. mysqli is included in PHP 5 by default and allows developers to use the advanced features of MySQL 4.1.x, 5.0.x and beyond.
+ * Database interface code for MySQL database servers using the mysqli client
+ * libraries. mysqli is included in PHP 5 by default and allows developers to
+ * use the advanced features of MySQL 4.1.x, 5.0.x and beyond.
  */
 
- // Maintainers of this file should consult:
- // http://www.php.net/manual/en/ref.mysqli.php
+// Maintainers of this file should consult:
+// http://www.php.net/manual/en/ref.mysqli.php
 
 /**
  * @ingroup database
@@ -35,6 +37,7 @@ function db_version() {
  *
  * @param string $url
  *   The database connection URL.
+ *
  * @return mysqli
  *   The database connection.
  */
@@ -53,7 +56,7 @@ function db_connect($url) {
   // Test if database URL has a password.
   $db_pass = isset($url_parts['pass']) ? urldecode($url_parts['pass']) : '';
   $db_name = substr(urldecode($url_parts['path']), 1);
-  $db_port = isset($url_parts['port']) ? $url_parts['port'] : 3306;
+  $db_port = isset($url_parts['port']) ? $url_parts['port'] : NULL;
 
   $db_conn = mysqli_init();
   @mysqli_real_connect($db_conn, $db_host, $db_user, $db_pass, $db_name, $db_port, NULL, MYSQLI_CLIENT_FOUND_ROWS);
@@ -83,7 +86,7 @@ function _db_query($query, $debug = 0) {
 
   if (variable_get('dev_query', 0)) {
     list($usec, $sec) = explode(' ', microtime());
-    $timer = (float)$usec + (float)$sec;
+    $timer = (float) $usec + (float) $sec;
     // If devel.module query logging is enabled, prepend a comment with the username and calling function
     // to the SQL string. This is useful when running mysql's SHOW PROCESSLIST to learn what exact
     // code is issueing the slow query.
@@ -100,7 +103,7 @@ function _db_query($query, $debug = 0) {
   if (variable_get('dev_query', 0)) {
     $query = $bt[2]['function'] ."\n". $query;
     list($usec, $sec) = explode(' ', microtime());
-    $stop = (float)$usec + (float)$sec;
+    $stop = (float) $usec + (float) $sec;
     $diff = $stop - $timer;
     $queries[] = array($query, $diff);
   }
@@ -125,6 +128,7 @@ function _db_query($query, $debug = 0) {
  *
  * @param mysqli_result $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return object|bool
  *   An object representing the next row of the result, or FALSE. The attributes
  *   of this object are the table fields selected by the query.
@@ -139,6 +143,7 @@ function db_fetch_object($result) {
  *
  * @param mysqli_result $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return array|bool
  *   An associative array representing the next row of the result, or FALSE.
  *   The keys of this object are the names of the table fields selected by the
@@ -157,6 +162,7 @@ function db_fetch_array($result) {
  *
  * @param mysqli_result $result
  *   A database query result resource, as returned from db_query().
+ *
  * @return mixed
  *   The resulting field or FALSE.
  */
@@ -197,6 +203,7 @@ function db_affected_rows() {
  *
  * @param string $data
  *   Data to encode.
+ *
  * @return string
  *   Encoded data.
  */
@@ -210,6 +217,7 @@ function db_encode_blob($data) {
  *
  * @param string $data
  *   Data to decode.
+ *
  * @return string
  *   Decoded data.
  */
@@ -218,10 +226,12 @@ function db_decode_blob($data) {
 }
 
 /**
- * Prepare user input for use in a database query, preventing SQL injection attacks.
+ * Prepare user input for use in a database query, preventing SQL injection
+ * attacks.
  *
  * @param string $text
  *   The string to escape.
+ *
  * @return string
  *   The escaped string.
  */
