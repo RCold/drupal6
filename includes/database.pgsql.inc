@@ -596,7 +596,7 @@ function _db_create_field_sql($field, $spec) {
   }
 
   if (isset($spec['default'])) {
-    $sql .= _db_process_sql(' DEFAULT %v', $spec['default']);
+    $sql .= _db_process_sql(' DEFAULT '. db_type_placeholder($spec['type']), $spec['default']);
   }
 
   return $sql;

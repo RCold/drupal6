@@ -134,16 +134,6 @@ function update_sql() {
 function db_prefix_tables($query) {
   global $db_prefix;
 
-  if (is_string($db_prefix)) {
-    $db_prefix = array('default' => $db_prefix);
-  }
-  elseif (!is_array($db_prefix)) {
-    $db_prefix = array('default' => '');
-  }
-  elseif (!isset($db_prefix['default'])) {
-    $db_prefix['default'] = '';
-  }
-
   $db_prefixes = $db_prefix;
   unset($db_prefixes['default']);
 
@@ -176,19 +166,6 @@ function db_prefix_tables($query) {
 function db_set_active($name = 'default') {
   global $db_url, $db_type, $active_db;
   static $db_conns, $active_name = FALSE;
-
-  if (is_string($db_url)) {
-    if ($db_url == 'mysql://username:password@localhost/databasename') {
-      // Ignore the placeholder URL
-      $db_url = NULL;
-    }
-    else {
-      $db_url = array('default' => $db_url);
-    }
-  }
-  elseif (!is_array($db_url)) {
-    $db_url = NULL;
-  }
 
   if (empty($db_url)) {
     include_once './includes/install.inc';
@@ -257,18 +234,6 @@ function db_is_active() {
 }
 
 function _db_process_sql() {
-  global $db_prefix;
-
-  if (is_string($db_prefix)) {
-    $db_prefix = array('default' => $db_prefix);
-  }
-  elseif (!is_array($db_prefix)) {
-    $db_prefix = array('default' => '');
-  }
-  elseif (!isset($db_prefix['default'])) {
-    $db_prefix['default'] = '';
-  }
-
   $args = func_get_args();
   $query = array_shift($args);
 
@@ -276,83 +241,94 @@ function _db_process_sql() {
     $args = $args[0];
   }
 
-  $query = preg_replace_callback("/%d|'%s'|%s|%n|%%|%f|%b|%l|%v|\\{[^}]*\\}/", function ($matches) use (&$args, $db_prefix) {
-    switch ($matches[0]) {
-      case '%d':
-        $value = array_shift($args);
-        if (is_bool($value)) {
-          return (int) $value;
-        }
-        $value = trim($value);
-        // 64-bit integer values can't be treated as int in 32-bit systems.
-        // is_numeric() allows decimal part, exponential part (+0123.45e6) and
-        // hex values (0xf4c3b00c), but they are not valid.
-        return is_numeric($value) && empty(strpbrk($value, '.EeXx')) ? $value : 'NULL';
-      case "'%s'":
-        $value = array_shift($args);
-        if (is_null($value)) {
-          return 'NULL';
-        }
-        return "'". db_escape_string($value) ."'";
-      case '%s':
-        $value = array_shift($args);
-        return db_escape_string($value);
-      case '%n':
-        $value = trim(array_shift($args));
-        // Numeric values have arbitrary precision, so can't be treated as float.
-        // is_numeric() allows exponential part (+0123.45e6) and hex values
-        // (0xf4c3b00c), but they are not valid.
-        return is_numeric($value) && empty(strpbrk($value, 'EeXx')) ? $value : 'NULL';
-      case '%%':
-        return '%';
-      case '%f':
-        $value = array_shift($args);
-        if (is_null($value)) {
-          return 'NULL';
-        }
-        return (float) $value;
-      case '%b':
-        // Binary data.
-        $value = array_shift($args);
-        if (is_null($value)) {
-          return 'NULL';
-        }
-        return db_encode_blob($value);
-      case '%l':
-        // Dynamic table, column or constraint name.
-        $value = array_shift($args);
-        return db_escape_table($value);
-      case '%v':
-        // Mixed variable. Internal use only.
-        $value = array_shift($args);
-        if (is_bool($value)) {
-          return (int) $value;
-        }
-        $numeric = trim($value);
-        if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
-          return $numeric;
-        }
-        if (is_string($value)) {
-          return "'". db_escape_string($value) ."'";
-        }
-        return 'NULL';
-      default:
-        // Prefix table name.
-        $table = trim(substr($matches[0], 1, -1));
-        if ($table == '%l') {
-          // Dynamic table name.
-          $table = array_shift($args);
-        }
-        if (array_key_exists($table, $db_prefix)) {
-          $table = $db_prefix[$table] . $table;
-        }
-        else {
-          $table = $db_prefix['default'] . $table;
-        }
-        return db_escape_table($table);
-    }
-  }, $query);
+  _db_process_sql_callback(NULL, $args);
+  $query = preg_replace_callback("/%d|'%s'|%s|%n|%%|%f|%b|%l|%v|\\{[^}]*\\}/", '_db_process_sql_callback', $query);
   return $query;
+}
+
+function _db_process_sql_callback($matches, $init = NULL) {
+  global $db_prefix;
+  static $args;
+
+  if (isset($init)) {
+    $args = $init;
+    return NULL;
+  }
+
+  switch ($matches[0]) {
+    case '%d':
+      $value = array_shift($args);
+      if (is_bool($value)) {
+        return (int) $value;
+      }
+      $value = trim($value);
+      // 64-bit integer values can't be treated as int in 32-bit systems.
+      // is_numeric() allows decimal part, exponential part (+0123.45e6) and
+      // hex values (0xf4c3b00c), but they are not valid.
+      return is_numeric($value) && empty(strpbrk($value, '.EeXx')) ? $value : 'NULL';
+    case "'%s'":
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return "'" . db_escape_string($value) . "'";
+    case '%s':
+      $value = array_shift($args);
+      return db_escape_string($value);
+    case '%n':
+      $value = trim(array_shift($args));
+      // Numeric values have arbitrary precision, so can't be treated as float.
+      // is_numeric() allows exponential part (+0123.45e6) and hex values
+      // (0xf4c3b00c), but they are not valid.
+      return is_numeric($value) && empty(strpbrk($value, 'EeXx')) ? $value : 'NULL';
+    case '%%':
+      return '%';
+    case '%f':
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return (float) $value;
+    case '%b':
+      // Binary data.
+      $value = array_shift($args);
+      if (is_null($value)) {
+        return 'NULL';
+      }
+      return db_encode_blob($value);
+    case '%l':
+      // Dynamic table, column or constraint name.
+      $value = array_shift($args);
+      return db_escape_table($value);
+    case '%v':
+      // Mixed variable. Internal use only.
+      $value = array_shift($args);
+      if (is_bool($value)) {
+        return (int) $value;
+      }
+      $numeric = trim($value);
+      if (is_numeric($numeric) && empty(strpbrk($numeric, 'Xx'))) {
+        return $numeric;
+      }
+      if (is_string($value)) {
+        return "'" . db_escape_string($value) . "'";
+      }
+      return 'NULL';
+    default:
+      // Prefix table name.
+      $table = trim(substr($matches[0], 1, -1));
+      if ($table == '%l') {
+        // Dynamic table name.
+        $table = array_shift($args);
+      }
+      if (array_key_exists($table, $db_prefix)) {
+        $table = $db_prefix[$table] . $table;
+      }
+      else {
+        $table = $db_prefix['default'] . $table;
+      }
+      return db_escape_table($table);
+  }
 }
 
 /**

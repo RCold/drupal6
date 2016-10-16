@@ -410,9 +410,27 @@ function conf_init() {
     include_once './'. conf_path() .'/settings.php';
   }
 
-  // Ignore the placeholder URL from default.settings.php.
-  if (isset($db_url) && $db_url == 'mysql://username:password@localhost/databasename') {
-    $db_url = '';
+  if (is_string($db_url)) {
+    if ($db_url == 'mysql://username:password@localhost/databasename') {
+      // Ignore the placeholder URL from default.settings.php.
+      $db_url = NULL;
+    }
+    else {
+      $db_url = array('default' => $db_url);
+    }
+  }
+  elseif (!is_array($db_url)) {
+    $db_url = NULL;
+  }
+
+  if (is_string($db_prefix)) {
+    $db_prefix = array('default' => $db_prefix);
+  }
+  elseif (!is_array($db_prefix)) {
+    $db_prefix = array('default' => '');
+  }
+  elseif (!isset($db_prefix['default'])) {
+    $db_prefix['default'] = '';
   }
 
   if (isset($base_url)) {
