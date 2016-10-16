@@ -895,7 +895,7 @@ function file_save_data($data, $dest, $replace = FILE_EXISTS_RENAME) {
 /**
  * Set the status of a file.
  *
- * @param $file 
+ * @param $file
  *   A Drupal file object.
  * @param $status
  *   A status value to set the file to. One of:
@@ -924,7 +924,7 @@ function file_transfer($source, $headers) {
   if (ob_get_level()) {
     ob_end_clean();
   }
-  
+
   // IE cannot download private files because it cannot store files downloaded
   // over HTTPS in the browser cache. The problem can be solved by sending
   // custom headers to IE. See http://support.microsoft.com/kb/323308/en-us
@@ -1082,7 +1082,7 @@ function file_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $ca
           // Give priority to files in this folder by merging them in after any subdirectory files.
           $files = array_merge(file_scan_directory("$dir/$file", $mask, $nomask, $callback, $recurse, $key, $min_depth, $depth + 1), $files);
         }
-        elseif ($depth >= $min_depth && preg_match('/' . $mask . '/', $file)) {
+        elseif ($depth >= $min_depth && preg_match('/'. $mask .'/', $file) > 0) {
           // Always use this match over anything already set in $files with the same $$key.
           $filename = "$dir/$file";
           $basename = basename($file);

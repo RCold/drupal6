@@ -257,15 +257,15 @@ function module_load_install($module) {
 
 /**
  * Load a module include file.
- * 
+ *
  * Examples:
  * @code
  *   // Load node.admin.inc from the node module.
  *   module_load_include('inc', 'node', 'node.admin');
  *   // Load content_types.inc from the node module.
- *   module_load_include('inc', 'node', 'content_types');  
+ *   module_load_include('inc', 'node', 'content_types');
  * @endcode
- * 
+ *
  * Do not use this function to load an install file. Use module_load_install()
  * instead.
  *
@@ -274,7 +274,7 @@ function module_load_install($module) {
  * @param $module
  *   The module to which the include file belongs.
  * @param $name
- *   Optionally, specify the base file name (without the $type extension). 
+ *   Optionally, specify the base file name (without the $type extension).
  *   If not set, $module is used.
  */
 function module_load_include($type, $module, $name = NULL) {

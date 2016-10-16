@@ -31,7 +31,7 @@ function blog_perm() {
 function blog_access($op, $node, $account) {
   switch ($op) {
     case 'create':
-      // Anonymous users cannot post even if they have the permission. 
+      // Anonymous users cannot post even if they have the permission.
       return user_access('create blog entries', $account) && $account->uid ? TRUE : NULL;
     case 'update':
       return user_access('edit any blog entry', $account) || (user_access('edit own blog entries', $account) && ($node->uid == $account->uid)) ? TRUE : NULL;
@@ -104,7 +104,7 @@ function blog_form(&$node) {
  */
 function blog_view($node, $teaser = FALSE, $page = FALSE) {
   if ($page) {
-    // Breadcrumb navigation. l() escapes the title, so we should not escape !name. 
+    // Breadcrumb navigation. l() escapes the title, so we should not escape !name.
     drupal_set_breadcrumb(array(l(t('Home'), NULL), l(t('Blogs'), 'blog'), l(t("!name's blog", array('!name' => $node->name)), 'blog/'. $node->uid)));
   }
   return node_prepare($node, $teaser);

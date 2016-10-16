@@ -35,102 +35,123 @@ function blogapi_xmlrpc() {
       'blogger.getUsersBlogs',
       'blogapi_blogger_get_users_blogs',
       array('array', 'string', 'string', 'string'),
-      t('Returns a list of blogs to which an author has posting privileges.')),
+      t('Returns a list of blogs to which an author has posting privileges.'),
+    ),
     array(
       'blogger.getUserInfo',
       'blogapi_blogger_get_user_info',
       array('struct', 'string', 'string', 'string'),
-      t('Returns information about an author in the system.')),
+      t('Returns information about an author in the system.'),
+    ),
     array(
       'blogger.newPost',
       'blogapi_blogger_new_post',
       array('string', 'string', 'string', 'string', 'string', 'string', 'boolean'),
-      t('Creates a new post, and optionally publishes it.')),
+      t('Creates a new post, and optionally publishes it.'),
+    ),
     array(
       'blogger.editPost',
       'blogapi_blogger_edit_post',
       array('boolean', 'string', 'string', 'string', 'string', 'string', 'boolean'),
-      t('Updates the information about an existing post.')),
+      t('Updates the information about an existing post.'),
+    ),
     array(
       'blogger.getPost',
       'blogapi_blogger_get_post',
       array('struct', 'string', 'string', 'string', 'string'),
-      t('Returns information about a specific post.')),
+      t('Returns information about a specific post.'),
+    ),
     array(
       'blogger.deletePost',
       'blogapi_blogger_delete_post',
       array('boolean', 'string', 'string', 'string', 'string', 'boolean'),
-      t('Deletes a post.')),
+      t('Deletes a post.'),
+    ),
     array(
       'blogger.getRecentPosts',
       'blogapi_blogger_get_recent_posts',
       array('array', 'string', 'string', 'string', 'string', 'int'),
-      t('Returns a list of the most recent posts in the system.')),
+      t('Returns a list of the most recent posts in the system.'),
+    ),
     array(
       'metaWeblog.newPost',
       'blogapi_metaweblog_new_post',
       array('string', 'string', 'string', 'string', 'struct', 'boolean'),
-      t('Creates a new post, and optionally publishes it.')),
+      t('Creates a new post, and optionally publishes it.'),
+    ),
     array(
       'metaWeblog.editPost',
       'blogapi_metaweblog_edit_post',
       array('boolean', 'string', 'string', 'string', 'struct', 'boolean'),
-      t('Updates information about an existing post.')),
+      t('Updates information about an existing post.'),
+    ),
     array(
       'metaWeblog.getPost',
       'blogapi_metaweblog_get_post',
       array('struct', 'string', 'string', 'string'),
-      t('Returns information about a specific post.')),
+      t('Returns information about a specific post.'),
+    ),
     array(
       'metaWeblog.newMediaObject',
       'blogapi_metaweblog_new_media_object',
       array('string', 'string', 'string', 'string', 'struct'),
-      t('Uploads a file to your webserver.')),
+      t('Uploads a file to your webserver.'),
+    ),
     array(
       'metaWeblog.getCategories',
       'blogapi_metaweblog_get_category_list',
       array('struct', 'string', 'string', 'string'),
-      t('Returns a list of all categories to which the post is assigned.')),
+      t('Returns a list of all categories to which the post is assigned.'),
+    ),
     array(
       'metaWeblog.getRecentPosts',
       'blogapi_metaweblog_get_recent_posts',
       array('array', 'string', 'string', 'string', 'int'),
-      t('Returns a list of the most recent posts in the system.')),
+      t('Returns a list of the most recent posts in the system.'),
+    ),
     array(
       'mt.getRecentPostTitles',
       'blogapi_mt_get_recent_post_titles',
       array('array', 'string', 'string', 'string', 'int'),
-      t('Returns a bandwidth-friendly list of the most recent posts in the system.')),
+      t('Returns a bandwidth-friendly list of the most recent posts in the system.'),
+    ),
     array(
       'mt.getCategoryList',
       'blogapi_mt_get_category_list',
       array('array', 'string', 'string', 'string'),
-      t('Returns a list of all categories defined in the blog.')),
+      t('Returns a list of all categories defined in the blog.'),
+    ),
     array(
       'mt.getPostCategories',
       'blogapi_mt_get_post_categories',
       array('array', 'string', 'string', 'string'),
-      t('Returns a list of all categories to which the post is assigned.')),
+      t('Returns a list of all categories to which the post is assigned.'),
+    ),
     array(
       'mt.setPostCategories',
       'blogapi_mt_set_post_categories',
       array('boolean', 'string', 'string', 'string', 'array'),
-      t('Sets the categories for a post.')),
+      t('Sets the categories for a post.'),
+    ),
     array(
       'mt.supportedMethods',
       'xmlrpc_server_list_methods',
       array('array'),
-      t('Retrieve information about the XML-RPC methods supported by the server.')),
+      t('Retrieve information about the XML-RPC methods supported by the server.'),
+    ),
     array(
       'mt.supportedTextFilters',
       'blogapi_mt_supported_text_filters',
       array('array'),
-      t('Retrieve information about the text formatting plugins supported by the server.')),
+      t('Retrieve information about the text formatting plugins supported by the server.'),
+    ),
     array(
       'mt.publishPost',
       'blogapi_mt_publish_post',
       array('boolean', 'string', 'string', 'string'),
-      t('Publish (rebuild) all of the static files related to an entry from your blog. Equivalent to saving an entry in the system (but without the ping).')));
+      t('Publish (rebuild) all of the static files related to an entry from your blog. Equivalent to saving an entry in the system (but without the ping).'),
+    ),
+  );
 }
 
 /**
@@ -144,7 +165,11 @@ function blogapi_blogger_get_users_blogs($appid, $username, $password) {
     $types = _blogapi_get_node_types();
     $structs = array();
     foreach ($types as $type) {
-      $structs[] = array('url' => url('blog/'. $user->uid, array('absolute' => TRUE)), 'blogid' => $type, 'blogName' => $user->name .": ". $type);
+      $structs[] = array(
+        'url' => url('blog/' . $user->uid, array('absolute' => TRUE)),
+        'blogid' => $type,
+        'blogName' => $user->name . ": " . $type,
+      );
     }
     return $structs;
   }
@@ -167,7 +192,8 @@ function blogapi_blogger_get_user_info($appkey, $username, $password) {
       'firstname' => $name[0],
       'nickname' => $user->name,
       'email' => $user->mail,
-      'url' => url('blog/'. $user->uid, array('absolute' => TRUE)));
+      'url' => url('blog/' . $user->uid, array('absolute' => TRUE)),
+    );
   }
   else {
     return blogapi_error($user);
@@ -324,7 +350,7 @@ function blogapi_blogger_get_post($appkey, $postid, $username, $password) {
  *   TRUE if no error, or the blogapi_error().
  */
 function blogapi_status_error_check($node, $original_status) {
-  
+
   $node = (object) $node;
 
   $node_type_default = variable_get('node_options_'. $node->type, array('status', 'promote'));
@@ -408,6 +434,7 @@ function blogapi_metaweblog_new_media_object($blogid, $username, $password, $fil
     return blogapi_error($user);
   }
 
+  $extensions = '';
   $usersize = 0;
   $uploadsize = 0;
 
@@ -809,10 +836,12 @@ function blogapi_menu() {
 
 function blogapi_init() {
   if (drupal_is_front_page()) {
-    drupal_add_link(array('rel' => 'EditURI',
-                          'type' => 'application/rsd+xml',
-                          'title' => t('RSD'),
-                          'href' => url('blogapi/rsd', array('absolute' => TRUE))));
+    drupal_add_link(array(
+      'rel' => 'EditURI',
+      'type' => 'application/rsd+xml',
+      'title' => t('RSD'),
+      'href' => url('blogapi/rsd', array('absolute' => TRUE)),
+    ));
   }
 }
 
@@ -845,6 +874,8 @@ __RSD__;
  * Handles extra information sent by clients according to MovableType's spec.
  */
 function _blogapi_mt_extra(&$node, $struct) {
+  $was_array = FALSE;
+
   if (is_array($node)) {
     $was_array = TRUE;
     $node = (object)$node;

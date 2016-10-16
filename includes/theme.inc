@@ -606,7 +606,7 @@ function list_themes($refresh = FALSE) {
  *   implementations for named objects.
  * @param ...
  *   Additional arguments to pass along to the theme function.
- * 
+ *
  * @return
  *   An HTML string that generates the themed output.
  */
@@ -1279,7 +1279,7 @@ function theme_links($links, $attributes = array('class' => 'links')) {
  * @param $getsize
  *   If set to TRUE, the image's dimension are fetched and added as width/height attributes.
  *   Defaults to TRUE. Must be set to FALSE if $path is a full URL.
- * 
+ *
  * @return
  *   A string containing the image tag.
  */

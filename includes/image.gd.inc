@@ -37,7 +37,7 @@ function image_gd_settings() {
       '#field_suffix' => t('%'),
     );
     $form['#element_validate'] = array('image_gd_settings_validate');
-    
+
     return $form;
   }
   else {

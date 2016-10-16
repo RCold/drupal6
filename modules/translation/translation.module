@@ -339,7 +339,7 @@ function translation_translation_link_alter(&$links, $path) {
     // Path can only start with "node/$nid" or "node/$nid/" here.
     $path = explode('/', $path);
     $node = node_load($path[1]);
-    $translations = translation_node_get_translations($node->tnid);  
+    $translations = translation_node_get_translations($node->tnid);
     foreach ($links as $langcode => $link) {
       if (isset($paths[$langcode]) && $translations[$langcode]->status) {
         // Translation in a different node.

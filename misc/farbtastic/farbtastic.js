@@ -103,14 +103,14 @@ jQuery._farbtastic = function (container, callback) {
     var x, y;
     var el = event.target || event.srcElement;
     var reference = fb.wheel;
-    
+
     // If the offset from the relative element is undefined calculate it.
     if ( typeof event.offsetX == 'undefined' && typeof event.offsetY == 'undefined' ) {
       var offset = $(event.target).offset(false);
       event.offsetX = event.pageX - offset.left;
       event.offsetY = event.pageY - offset.top;
     }
-    
+
     // Use offset coordinates and find common offsetParent
     var pos = { x: event.offsetX, y: event.offsetY };
 

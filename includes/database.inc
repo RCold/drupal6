@@ -138,7 +138,7 @@ function db_prefix_tables($query) {
   unset($db_prefixes['default']);
 
   foreach ($db_prefixes as $key => $value) {
-    $query = strtr($query, array('{' . $key . '}' => $value . $key));
+    $query = strtr($query, array('{'. $key .'}' => $value . $key));
   }
 
   return strtr($query, array('{' => $db_prefix['default'], '}' => ''));
@@ -271,7 +271,7 @@ function _db_process_sql_callback($matches, $init = NULL) {
       if (is_null($value)) {
         return 'NULL';
       }
-      return "'" . db_escape_string($value) . "'";
+      return "'". db_escape_string($value) ."'";
     case '%s':
       $value = array_shift($args);
       return db_escape_string($value);
@@ -311,7 +311,7 @@ function _db_process_sql_callback($matches, $init = NULL) {
         return $numeric;
       }
       if (is_string($value)) {
-        return "'" . db_escape_string($value) . "'";
+        return "'". db_escape_string($value) ."'";
       }
       return 'NULL';
     default:

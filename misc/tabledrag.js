@@ -703,7 +703,7 @@ Drupal.tableDrag.prototype.updateField = function(changedRow, group) {
           var maxVal = values[values.length - 1];
           // Populate the values in the siblings.
           $(targetClass, siblings).each(function() {
-            // If there are more items than possible values, assign the maximum value to the row. 
+            // If there are more items than possible values, assign the maximum value to the row.
             if (values.length > 0) {
               this.value = values.shift();
             }

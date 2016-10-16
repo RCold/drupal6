@@ -83,7 +83,7 @@ function path_admin_delete($pid = 0) {
 
 /**
  * Set an aliased path for a given Drupal path, preventing duplicates.
- * 
+ *
  * @param $path
  *   Path URL. Set to NULL to delete alias.
  * @param $alias

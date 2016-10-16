@@ -162,7 +162,7 @@ function user_admin_account() {
     $query_count = 'SELECT COUNT(u.uid) FROM {users} u WHERE u.uid != 0 '. $filter['where'];
   }
 
-  
+
   $sql .= tablesort_sql($header);
 
   $result = pager_query($sql, 50, 0, $query_count, $filter['args']);

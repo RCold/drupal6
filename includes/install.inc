@@ -34,7 +34,7 @@ function drupal_load_updates() {
  * @param $module
  *   A module name.
  * @return
- *   If the module has updates, an array of available updates sorted by version. 
+ *   If the module has updates, an array of available updates sorted by version.
  *   Otherwise, FALSE.
  */
 function drupal_get_schema_versions($module) {

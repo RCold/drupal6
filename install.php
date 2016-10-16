@@ -40,7 +40,7 @@ function install_main() {
   drupal_load('module', 'filter');
 
   // Install profile chosen, set the global immediately.
-  // This needs to be done before the theme cache gets 
+  // This needs to be done before the theme cache gets
   // initialized in drupal_maintenance_theme().
   if (!empty($_GET['profile'])) {
     $profile = preg_replace('/[^a-zA-Z_0-9]/', '', $_GET['profile']);
@@ -493,7 +493,7 @@ function install_select_profile_form(&$form_state, $profile_files) {
     $names[$profile->name] = $name;
   }
 
-  // Display radio buttons alphabetically by human-readable name. 
+  // Display radio buttons alphabetically by human-readable name.
   natcasesort($names);
   foreach ($names as $profile => $name) {
     $form['profile'][$name] = array(
@@ -959,7 +959,7 @@ More details about installing Drupal are available in INSTALL.txt.', array('@dru
         drupal_set_message($message, 'warning');
       }
     }
-  } 
+  }
 }
 
 /**

@@ -1276,10 +1276,10 @@ function node_search($op = 'search', $keys = NULL) {
         $join2 .= ' LEFT JOIN {node_counter} nc ON nc.nid = i.sid';
         $total += $weight;
       }
-      
-      // When all search factors are disabled (ie they have a weight of zero), 
-      // the default score is based only on keyword relevance and there is no need to 
-      // adjust the score of each item. 
+
+      // When all search factors are disabled (ie they have a weight of zero),
+      // the default score is based only on keyword relevance and there is no need to
+      // adjust the score of each item.
       if ($total == 0) {
         $select2 = 'i.relevance AS score';
         $total = 1;
@@ -1287,7 +1287,7 @@ function node_search($op = 'search', $keys = NULL) {
       else {
         $select2 = implode(' + ', $ranking) . ' AS score';
       }
-      
+
       // Do search.
       $find = do_search($keys, 'node', 'INNER JOIN {node} n ON n.nid = i.sid '. $join1, $conditions1 . (empty($where1) ? '' : ' AND '. $where1), $arguments1, $select2, $join2, $arguments2);
 
@@ -1715,7 +1715,7 @@ function node_feed($nids = FALSE, $channel = array()) {
         $item->body = $content;
         unset($item->teaser);
       }
-    
+
       // Allow modules to modify the fully-built node.
       node_invoke_nodeapi($item, 'alter', $teaser, FALSE);
     }
